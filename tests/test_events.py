@@ -92,7 +92,9 @@ class ModelTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "timezone offset"):
             Eventer.from_discord(payload)
         with self.assertRaisesRegex(ValueError, "timezone offset"):
-            Eventer.MUdateFormatter(payload.start_time)
+            meetup = meetup_payload()
+            meetup["dateTime"] = payload.start_time
+            Eventer.from_meetup(MeetupEvent.model_validate(meetup), "")
 
     def test_meetup_rejects_nested_string_count(self) -> None:
         payload = meetup_payload()
@@ -128,7 +130,7 @@ class ModelTests(unittest.TestCase):
         payload = discord_payload()
         payload.end_time = None
         event = Eventer.from_discord(payload)
-        self.assertEqual(event.duration, datetime.timedelta())
+        self.assertIsNone(event.duration)
         self.assertEqual(event.imageurl, "/static/Members-Only-Event.png")
         self.assertEqual(event.start, "06:30PM")
 
