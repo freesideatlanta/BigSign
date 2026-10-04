@@ -10,8 +10,10 @@ from pathlib import Path
 def install() -> None:
     """Runs on BigSign over SSH."""
     import os
+    import re
     import shutil
     import subprocess
+    import time
     from pathlib import Path
 
     def run(
@@ -27,9 +29,6 @@ def install() -> None:
     os.chdir(root)
     os.environ["PATH"] = f"/home/eventerini/.local/bin:{os.environ['PATH']}"
     run(["sudo", "-v"])
-    if shutil.which("xdotool") is None:
-        run(["sudo", "apt-get", "update"])
-        run(["sudo", "apt-get", "install", "-y", "xdotool"])
     uv = Path("/home/eventerini/.local/bin/uv")
     if not uv.exists():
         installer = subprocess.run(
@@ -94,17 +93,50 @@ def install() -> None:
     entry = (root / "deploy/events-fetch.cron").read_text().strip()
     run(["crontab", "-"], input="\n".join([*lines, entry]) + "\n", text=True)
 
-    autostart = Path("/home/eventerini/.config/autostart")
-    autostart.mkdir(parents=True, exist_ok=True)
+    user_units = Path("/home/eventerini/.config/systemd/user")
+    user_units.mkdir(parents=True, exist_ok=True)
     run(
         [
             "install",
             "-m",
             "644",
-            "deploy/kiosk.desktop",
-            str(autostart / "kiosk.desktop"),
+            "deploy/freeside-kiosk.service",
+            str(user_units / "freeside-kiosk.service"),
         ]
     )
+    run(["systemctl", "--user", "daemon-reload"])
+    run(
+        [
+            "sudo",
+            "install",
+            "-m",
+            "644",
+            "deploy/freeside-kiosk.desktop",
+            "/usr/share/wayland-sessions/freeside-kiosk.desktop",
+        ]
+    )
+    # LightDM's main configuration overrides conf.d, so update its seat settings.
+    lightdm = Path("/etc/lightdm/lightdm.conf")
+    config = lightdm.read_text()
+    updated = config
+    for key in ("user-session", "autologin-session"):
+        updated, count = re.subn(
+            rf"^{key}=.*$", f"{key}=freeside-kiosk", updated, flags=re.MULTILINE
+        )
+        if count != 1:
+            raise RuntimeError(f"Expected one {key} setting in {lightdm}")
+    session_changed = updated != config
+    if session_changed:
+        backup = Path("/etc/lightdm/lightdm.conf.before-freeside-kiosk")
+        if not backup.exists():
+            run(["sudo", "cp", "-p", str(lightdm), str(backup)])
+        run(
+            ["sudo", "tee", str(lightdm)],
+            input=updated,
+            text=True,
+            stdout=subprocess.DEVNULL,
+        )
+    Path("/home/eventerini/.config/autostart/kiosk.desktop").unlink(missing_ok=True)
     run(["sudo", "systemctl", "restart", "events-server.service"])
     run(
         [
@@ -121,7 +153,39 @@ def install() -> None:
         ],
         stdout=subprocess.DEVNULL,
     )
-    run(["bash", "deploy/reload-kiosk.sh"])
+    if session_changed:
+        run(["sudo", "systemctl", "restart", "lightdm"])
+    else:
+        session_env = subprocess.run(
+            ["systemctl", "--user", "show-environment"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        wayland_env = os.environ.copy()
+        for line in session_env.stdout.splitlines():
+            key, _, value = line.partition("=")
+            if key in ("WAYLAND_DISPLAY", "XDG_RUNTIME_DIR"):
+                wayland_env[key] = value
+        subprocess.run(
+            ["sh", "deploy/labwc/autostart"],
+            check=True,
+            env=wayland_env,
+        )
+        run(["systemctl", "--user", "restart", "freeside-kiosk.service"])
+    for _ in range(30):
+        kiosk = subprocess.run(
+            ["systemctl", "--user", "is-active", "--quiet", "freeside-kiosk.service"]
+        )
+        if kiosk.returncode == 0:
+            break
+        time.sleep(1)
+    else:
+        raise RuntimeError(
+            "Wayland kiosk did not start; check journalctl --user -u freeside-kiosk"
+        )
+    time.sleep(2)
+    run(["systemctl", "--user", "is-active", "--quiet", "freeside-kiosk.service"])
     # Retire the old environment only after the new service passes its health check.
     for name in ("myenv", "__pycache__"):
         path = root / name
@@ -135,7 +199,9 @@ def install() -> None:
         "kiosk.desktop",
     ):
         (root / name).unlink(missing_ok=True)
-    print("Deployed. Kiosk launcher changes take effect at the next desktop login.")
+    for name in ("kiosk.desktop", "reload-kiosk.sh"):
+        (root / "deploy" / name).unlink(missing_ok=True)
+    print("Deployed. Wayland kiosk restarted with the updated sign.")
 
 
 def deploy() -> None:

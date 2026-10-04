@@ -1,0 +1,5 @@
+[Desktop Entry]
+Name=Freeside Kiosk
+Type=Application
+Exec=/usr/bin/labwc -C /home/eventerini/Documents/deploy/labwc
+DesktopNames=labwc

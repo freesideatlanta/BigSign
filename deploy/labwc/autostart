@@ -1,0 +1,5 @@
+#!/bin/sh
+set -eu
+wlr-randr --output HDMI-A-1 --transform 270
+systemctl --user import-environment WAYLAND_DISPLAY XDG_RUNTIME_DIR
+systemctl --user start freeside-kiosk.service

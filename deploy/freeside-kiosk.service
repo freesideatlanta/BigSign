@@ -1,0 +1,8 @@
+[Unit]
+Description=Freeside Chromium Kiosk
+
+[Service]
+ExecStart=/bin/bash /home/eventerini/Documents/deploy/start-kiosk.sh
+Restart=always
+RestartSec=2
+TimeoutStopSec=10
