@@ -1,9 +1,19 @@
 import datetime
 from typing import Self
+from zoneinfo import ZoneInfo
 
 from models import DiscordEvent, EventId, EventSource, MeetupEvent, StrictModel
 
-discordDelt = datetime.timedelta(hours=-4)
+DISPLAY_TIME_ZONE = ZoneInfo("America/New_York")
+
+
+def parse_datetime(value: str) -> datetime.datetime:
+    result = datetime.datetime.fromisoformat(value)
+    if result.utcoffset() is None:
+        raise ValueError("Event timestamps must include a timezone offset")
+    return result
+
+
 type FormattedDate = tuple[str, str | datetime.timedelta, str, float]
 
 
@@ -58,13 +68,10 @@ class Eventer(StrictModel):
 
     @staticmethod
     def DCdateFormatter(event: DiscordEvent) -> FormattedDate:
-        start_dt = datetime.datetime.fromisoformat(event.start_time).replace(
-            tzinfo=None
-        )
-        display_dt = start_dt + discordDelt
+        start_dt = parse_datetime(event.start_time)
+        display_dt = start_dt.astimezone(DISPLAY_TIME_ZONE)
         duration = (
-            datetime.datetime.fromisoformat(event.end_time).replace(tzinfo=None)
-            - start_dt
+            parse_datetime(event.end_time) - start_dt
             if event.end_time is not None
             else datetime.timedelta()
         )
@@ -72,15 +79,16 @@ class Eventer(StrictModel):
             display_dt.strftime("%A, %d %B %Y"),
             duration,
             display_dt.strftime("%I:%M%p"),
-            display_dt.timestamp(),
+            start_dt.timestamp(),
         )
 
     @staticmethod
     def MUdateFormatter(dt: str) -> FormattedDate:
-        start_dt = datetime.datetime.fromisoformat(dt).replace(tzinfo=None)
+        start_dt = parse_datetime(dt)
+        display_dt = start_dt.astimezone(DISPLAY_TIME_ZONE)
         return (
-            start_dt.strftime("%A, %d %B %Y"),
+            display_dt.strftime("%A, %d %B %Y"),
             dt[-5:],
-            start_dt.strftime("%I:%M%p"),
+            display_dt.strftime("%I:%M%p"),
             start_dt.timestamp(),
         )

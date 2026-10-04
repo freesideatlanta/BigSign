@@ -315,6 +315,7 @@
 
 <script>
 // ── CONFIG ────────────────────────────────────────────────────
+const DISPLAY_TIME_ZONE = 'America/New_York';
 const JSON_PATH = 'eventsdata.json';   // same folder as this HTML
 const REFRESH_MS  = 60 * 60 * 1000;   // 1 hour
 const SCROLL_PPS  = 30;               // pixels per second (scroll down)
@@ -334,11 +335,10 @@ let visibleHeight = 0;
 // ── CLOCK ─────────────────────────────────────────────────────
 function updateClock() {
   const now = new Date();
-  const h = String(now.getHours()).padStart(2,'0');
-  const m = String(now.getMinutes()).padStart(2,'0');
-  document.getElementById('clock').textContent = `${h}:${m}`;
+  document.getElementById('clock').textContent =
+    now.toLocaleTimeString('en-US', {timeZone: DISPLAY_TIME_ZONE, hour: '2-digit', minute: '2-digit', hourCycle: 'h23'});
   document.getElementById('datedisp').textContent =
-    now.toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric'});
+    now.toLocaleDateString('en-US', {timeZone: DISPLAY_TIME_ZONE, weekday:'long', month:'long', day:'numeric'});
 }
 setInterval(updateClock, 1000);
 updateClock();
@@ -374,19 +374,21 @@ function buildCards() {
   track.innerHTML = '';
 
   let lastDate = null;
-  const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const dateFormatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: DISPLAY_TIME_ZONE, weekday: 'long', month: 'short', day: 'numeric', year: 'numeric'
+  });
 
   events.forEach(ev => {
     const d = new Date(ev.index * 1000);
-    const dateKey = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    const parts = Object.fromEntries(dateFormatter.formatToParts(d).map(part => [part.type, part.value]));
+    const dateKey = `${parts.year}-${parts.month}-${parts.day}`;
 
     if (dateKey !== lastDate) {
       lastDate = dateKey;
       const sep = document.createElement('div');
       sep.className = 'date-sep';
       sep.innerHTML = `
-        <span class="date-sep-label">${days[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()}</span>
+        <span class="date-sep-label">${parts.weekday}, ${parts.month} ${parts.day}</span>
         <span class="date-sep-line"></span>`;
       track.appendChild(sep);
     }
@@ -395,9 +397,9 @@ function buildCards() {
     card.className = 'event-card ' + (ev.free ? 'free' : 'paid');
 
     const timeStr = ev.time;
-    const day = d.getDate();
-    const dow = days[d.getDay()].slice(0,3).toUpperCase();
-    const mon = months[d.getMonth()].toUpperCase();
+    const day = parts.day;
+    const dow = parts.weekday.slice(0,3).toUpperCase();
+    const mon = parts.month.toUpperCase();
 
     card.innerHTML = `
       <div class="event-date-block">

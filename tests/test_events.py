@@ -1,6 +1,8 @@
 import datetime
 import json
+import os
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -54,6 +56,44 @@ class ModelTests(unittest.TestCase):
         self.assertEqual(event.attendees, 4)
         self.assertEqual(event.start, "06:30PM")
         self.assertTrue(event.free)
+
+    def test_timestamps_ignore_server_timezone_and_observe_dst(self) -> None:
+        original_timezone = os.environ.get("TZ")
+        try:
+            for timezone in ("UTC", "America/New_York"):
+                os.environ["TZ"] = timezone
+                time.tzset()
+                for month, display in ((10, "06:30PM"), (12, "05:30PM")):
+                    payload = discord_payload()
+                    payload.start_time = f"2026-{month:02}-04T22:30:00+00:00"
+                    payload.end_time = None
+                    discord_event = Eventer.from_discord(payload)
+                    meetup = meetup_payload()
+                    meetup["dateTime"] = payload.start_time
+                    meetup_event = Eventer.from_meetup(
+                        MeetupEvent.model_validate(meetup), ""
+                    )
+                    expected = datetime.datetime.fromisoformat(
+                        payload.start_time
+                    ).timestamp()
+                    with self.subTest(timezone=timezone, month=month):
+                        for event in (discord_event, meetup_event):
+                            self.assertEqual(event.index, expected)
+                            self.assertEqual(event.start, display)
+        finally:
+            if original_timezone is None:
+                os.environ.pop("TZ", None)
+            else:
+                os.environ["TZ"] = original_timezone
+            time.tzset()
+
+    def test_naive_timestamps_are_rejected(self) -> None:
+        payload = discord_payload()
+        payload.start_time = "2026-10-04T22:30:00"
+        with self.assertRaisesRegex(ValueError, "timezone offset"):
+            Eventer.from_discord(payload)
+        with self.assertRaisesRegex(ValueError, "timezone offset"):
+            Eventer.MUdateFormatter(payload.start_time)
 
     def test_meetup_rejects_nested_string_count(self) -> None:
         payload = meetup_payload()
