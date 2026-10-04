@@ -33,6 +33,10 @@ See [deployment prerequisites](deploy/README.md).
 
 ## Before committing Python changes
 
+GitHub Actions runs formatting, lint, type, and unit test checks on every push
+and pull request using Python from `.python-version` and dependencies from
+`uv.lock`. You can also run CI manually from the Actions tab.
+
 ```sh
 uv run ruff format .
 uv run ruff check .
