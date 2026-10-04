@@ -28,6 +28,7 @@
     font-family: 'Space Grotesk', sans-serif;
     overflow: hidden;
   }
+  /* Hide the kiosk cursor automatically, without requiring a user gesture. */
   * {
     cursor: none !important;
   }
@@ -508,11 +509,6 @@ setInterval(init, REFRESH_MS);
 window.addEventListener('resize', getHeights);
 
 init();
-</script>
-<script>
-  document.addEventListener('DOMContentLoaded', () => {
-    document.documentElement.requestPointerLock();
-  });
 </script>
 </body>
 </html>
