@@ -141,6 +141,18 @@ class ModelTests(unittest.TestCase):
             self.assertEqual(len(events), 1)
             self.assertEqual(events[0].source, "Meetup")
 
+    def test_deduplication_preserves_distinct_same_day_sessions(self) -> None:
+        first = meetup_event()
+        payload = discord_payload()
+        payload.start_time = "2026-10-05T00:30:00+00:00"
+        payload.end_time = None
+        second = Eventer.from_discord(payload)
+        self.assertEqual(first.date, second.date)
+        self.assertEqual(
+            sign_events([first, second]),
+            [sign_events([first])[0], sign_events([second])[0]],
+        )
+
     def test_json_output_round_trip_and_field_names(self) -> None:
         events = sign_events([meetup_event()])
         with tempfile.TemporaryDirectory() as directory:

@@ -13,9 +13,9 @@ from visher import Eventer
 
 def sign_events(events: Iterable[Eventer]) -> list[SignEvent]:
     result: list[SignEvent] = []
-    seen: set[tuple[str, str]] = set()
+    seen: set[tuple[str, float]] = set()
     for event in events:
-        key = (event.title, event.date)
+        key = (event.title, event.index)
         if key in seen:
             continue
         seen.add(key)
