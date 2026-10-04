@@ -7,14 +7,20 @@ import subprocess
 from pathlib import Path
 
 
-def install():
+def install() -> None:
     """Runs on BigSign over SSH."""
     import os
     import subprocess
     from pathlib import Path
 
-    def run(command, **kwargs):
-        return subprocess.run(command, check=True, **kwargs)
+    def run(
+        command: list[str],
+        *,
+        input: bytes | str | None = None,
+        text: bool = False,
+        stdout: int | None = None,
+    ) -> None:
+        subprocess.run(command, check=True, input=input, text=text, stdout=stdout)
 
     root = Path("/home/eventerini/Documents")
     os.chdir(root)
@@ -22,8 +28,10 @@ def install():
     run(["sudo", "-v"])
     uv = Path("/home/eventerini/.local/bin/uv")
     if not uv.exists():
-        installer = run(
-            ["curl", "-fsSL", "https://astral.sh/uv/install.sh"], capture_output=True
+        installer = subprocess.run(
+            ["curl", "-fsSL", "https://astral.sh/uv/install.sh"],
+            check=True,
+            capture_output=True,
         ).stdout
         run(["sh"], input=installer)
     run([str(uv), "python", "install", "3.13"])
@@ -112,12 +120,29 @@ def install():
     print("Deployed. Reload Chromium for HTML changes; log in again for kiosk changes.")
 
 
-def deploy():
+def deploy() -> None:
     root = Path(__file__).resolve().parents[1]
     host = "eventerini@192.168.1.138"
     target = "/home/eventerini/Documents"
 
-    subprocess.run(["ssh", host, f"test -s {target}/.env"], check=True)
+    env_check = subprocess.run(["ssh", host, f"test -s {target}/.env"])
+    if env_check.returncode == 1:
+        raise SystemExit(
+            f"Missing or empty {target}/.env on {host}.\n"
+            "Create it on the host and set TOKEN to the Discord bot token:\n"
+            f"  ssh -t {host} "
+            + shlex.quote(
+                f"mkdir -p {target} && umask 077 && touch {target}/.env "
+                f"&& chmod 600 {target}/.env && nano {target}/.env"
+            )
+            + "\nThen rerun this deploy command."
+        )
+    if env_check.returncode:
+        raise SystemExit(
+            f"Could not check {target}/.env on {host} "
+            f"(SSH exited with status {env_check.returncode}). "
+            "Resolve the SSH error above and retry."
+        )
     files = [
         *[path.name for path in root.glob("*.py")],
         "freeside-sign.html",

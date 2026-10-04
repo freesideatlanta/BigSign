@@ -2,82 +2,57 @@ import asyncio
 
 import discord
 
+from models import DiscordEvent
 from visher import Eventer
 
 
-async def get_scheduled_events(tk):
-    """
-    Get all scheduled events from all Discord servers the bot has access to.
-
-    Args:
-        token: Discord bot token
-
-    Returns:
-        List of dictionaries containing event information
-    """
-    # Set up intents
+async def get_scheduled_events(tk: str) -> list[Eventer]:
+    """Get scheduled events from the bot's first Discord server."""
     intents = discord.Intents.default()
     intents.guild_scheduled_events = True
-
-    # Create client
     client = discord.Client(intents=intents)
-
-    # Store events
-    all_events = []
+    all_events: list[Eventer] = []
+    collection_error: Exception | None = None
 
     @client.event
-    async def on_ready():
+    async def on_ready() -> None:
+        nonlocal collection_error
         print("Logged in")
-        print(f"Fetching events from {len(client.guilds)} servers...")
-        guild = client.guilds[0]
         try:
+            if not client.guilds:
+                return
+            guild = client.guilds[0]
             events = await guild.fetch_scheduled_events()
             for event in events:
-                # Create event info dictionary
-                event_info = {
-                    "id": event.id,
-                    "name": event.name,
-                    "description": event.description,
-                    "start_time": event.start_time.isoformat()
-                    if event.start_time
-                    else None,
-                    "end_time": event.end_time.isoformat() if event.end_time else None,
-                    "status": str(event.status).split(".")[
-                        -1
-                    ],  # scheduled, active, etc.
-                    "interested_count": event.user_count,
-                    "creator_id": event.creator.id if event.creator else None,
-                    "creator_name": event.creator.name if event.creator else None,
-                    "imageurl": event.cover_image,
-                    "privacy_level": str(event.privacy_level).split(".")[-1]
-                    if hasattr(event, "privacy_level")
-                    else None,
-                }
-                event_obj = Eventer(event_info, "Discord")
-                all_events.append(event_obj)
+                payload = DiscordEvent(
+                    id=event.id,
+                    name=event.name,
+                    start_time=event.start_time.isoformat(),
+                    end_time=event.end_time.isoformat() if event.end_time else None,
+                    interested_count=event.user_count,
+                    imageurl=str(event.cover_image) if event.cover_image else None,
+                )
+                all_events.append(Eventer.from_discord(payload))
         except discord.Forbidden:
-            print(f"No permission to view events in {guild.name}")
-        except Exception as e:
-            print(f"Error fetching events from {guild.name}: {e}")
+            print("No permission to view scheduled events")
+        except Exception as error:
+            # Discord dispatches callbacks in a task; propagate failure to the caller.
+            collection_error = error
+        finally:
+            await client.close()
 
-        # Close the client connection
-        await client.close()
-
-    # Run the client
     try:
         await client.start(tk)
     except discord.LoginFailure:
         print("Failed to login. Please check your token.")
         return []
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        return []
-    await client.close()
+    finally:
+        if not client.is_closed():
+            await client.close()
+    if collection_error is not None:
+        raise collection_error
     return all_events
 
-    # Run the client
 
-
-def discordEvents(tk):
-    events = asyncio.run(get_scheduled_events(tk))
-    return events
+def discordEvents(tk: str) -> list[Eventer]:
+    return asyncio.run(get_scheduled_events(tk))

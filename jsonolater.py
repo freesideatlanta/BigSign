@@ -1,44 +1,17 @@
-import json
-import os
+from pathlib import Path
 
-from dotenv import load_dotenv
+from pydantic import TypeAdapter
 
-import discorder as dc
-import scraper as sc
+from events import collect_events
+from models import SignEvent
 
-load_dotenv()
-events_meetup = sc.MeetupScrape()
-events_discord = dc.discordEvents(os.environ["TOKEN"])
-
-events_obj = events_meetup + events_discord
-events = []
-seen = set()
+event_list_adapter = TypeAdapter(list[SignEvent])
 
 
-def events_json():
-    for event in events_obj:
-        key = (event.title, event.date)
-        if key not in seen:
-            seen.add(key)
-            dd = {
-                "id": event.ID,
-                "index": event.index,
-                "title": event.title,
-                "group": "Humans, hopefully",
-                "date": event.date,
-                "time": event.start,
-                "venue": "FreesideProbably",
-                "free": event.free,
-                "source": event.source,
-                "description": "maybe in the future we can distill the description using an LLM",
-                "attendees": event.attendees,
-                "image_url": str(event.imageurl),
-                "rsvp_link": "caint rsvp on a tv",
-            }
-            events.append(dd)
-    print(events)
-    with open("eventsdata.json", "w") as final:
-        json.dump(events, final)
+def events_json(output: Path = Path("eventsdata.json")) -> None:
+    events = collect_events()
+    output.write_bytes(event_list_adapter.dump_json(events))
 
 
-events_json()
+if __name__ == "__main__":
+    events_json()

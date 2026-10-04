@@ -1,0 +1,212 @@
+import datetime
+import json
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, patch
+
+from pydantic import JsonValue, ValidationError
+
+import app
+import discorder
+import jsonolater
+import scraper
+from events import sign_events
+from models import DiscordEvent, MeetupEvent, Settings, SignEvent
+from visher import Eventer
+
+
+def meetup_payload() -> dict[str, JsonValue]:
+    return {
+        "id": "123",
+        "title": "Workshop",
+        "status": "ACTIVE",
+        "dateTime": "2026-10-04T18:30:00-04:00",
+        "going": {"totalCount": 5},
+        "eventHosts": [{"__ref": "Member:1"}],
+        "feeSettings": None,
+        "featuredEventPhoto": {"__ref": "Photo:1"},
+        "unusedProviderField": True,
+    }
+
+
+def meetup_event() -> Eventer:
+    return Eventer.from_meetup(
+        MeetupEvent.model_validate(meetup_payload()), "https://example.com/photo.jpg"
+    )
+
+
+def discord_payload() -> DiscordEvent:
+    return DiscordEvent(
+        id=456,
+        name="Workshop",
+        start_time="2026-10-04T22:30:00+00:00",
+        end_time="2026-10-05T00:30:00+00:00",
+        interested_count=3,
+        imageurl=None,
+    )
+
+
+class ModelTests(unittest.TestCase):
+    def test_meetup_conversion(self) -> None:
+        event = meetup_event()
+        self.assertEqual(event.ID, "123")
+        self.assertEqual(event.attendees, 4)
+        self.assertEqual(event.start, "06:30PM")
+        self.assertTrue(event.free)
+
+    def test_meetup_rejects_nested_string_count(self) -> None:
+        payload = meetup_payload()
+        payload["going"] = {"totalCount": "5"}
+        with self.assertRaises(ValidationError):
+            MeetupEvent.model_validate(payload)
+
+    def test_discord_rejects_string_and_boolean_ids(self) -> None:
+        for invalid_id in ("456", True):
+            payload = discord_payload().model_dump()
+            payload["id"] = invalid_id
+            with self.subTest(id=invalid_id), self.assertRaises(ValidationError):
+                DiscordEvent.model_validate(payload)
+
+    def test_assignment_validation(self) -> None:
+        event = meetup_event()
+        with self.assertRaises(ValidationError):
+            setattr(event, "attendees", "4")
+        self.assertEqual(event.attendees, 4)
+
+    def test_output_rejects_wrong_types_and_extra_fields(self) -> None:
+        data = sign_events([meetup_event()])[0].model_dump()
+        for field, value in (("free", "true"), ("attendees", "4"), ("unknown", 1)):
+            with self.subTest(field=field), self.assertRaises(ValidationError):
+                SignEvent.model_validate({**data, field: value})
+
+    def test_missing_and_empty_token_are_rejected(self) -> None:
+        for value in (None, "", 123):
+            with self.subTest(token=value), self.assertRaises(ValidationError):
+                Settings.model_validate({"token": value})
+
+    def test_discord_optional_end_and_cover(self) -> None:
+        payload = discord_payload()
+        payload.end_time = None
+        event = Eventer.from_discord(payload)
+        self.assertEqual(event.duration, datetime.timedelta())
+        self.assertEqual(event.imageurl, "/static/Members-Only-Event.png")
+        self.assertEqual(event.start, "06:30PM")
+
+    def test_deduplication_is_repeatable(self) -> None:
+        meetup = meetup_event()
+        discord = Eventer.from_discord(discord_payload())
+        for _ in range(2):
+            events = sign_events([meetup, discord])
+            self.assertEqual(len(events), 1)
+            self.assertEqual(events[0].source, "Meetup")
+
+    def test_json_output_round_trip_and_field_names(self) -> None:
+        events = sign_events([meetup_event()])
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "events.json"
+            with patch("jsonolater.collect_events", return_value=events):
+                jsonolater.events_json(path)
+                self.assertEqual(
+                    jsonolater.event_list_adapter.validate_json(path.read_bytes()),
+                    events,
+                )
+                first_output = path.read_bytes()
+                jsonolater.events_json(path)
+                self.assertEqual(path.read_bytes(), first_output)
+        self.assertEqual(
+            set(events[0].model_dump()),
+            {
+                "id",
+                "index",
+                "title",
+                "group",
+                "date",
+                "time",
+                "venue",
+                "free",
+                "source",
+                "description",
+                "attendees",
+                "image_url",
+                "rsvp_link",
+            },
+        )
+
+
+class CollectorTests(unittest.TestCase):
+    def test_scraper_validates_page_and_skips_cancelled(self) -> None:
+        cancelled = {**meetup_payload(), "id": "124", "status": "CANCELLED"}
+        apollo = {
+            "Event:123": meetup_payload(),
+            "Event:124": cancelled,
+            "Photo:1": {"highResUrl": "https://example.com/photo.jpg"},
+            "OtherEventData:1": {"unused": True},
+        }
+        page = {"props": {"pageProps": {"__APOLLO_STATE__": apollo}}}
+        response = MagicMock()
+        response.content = (
+            '<script id="__NEXT_DATA__" type="application/json">'
+            + json.dumps(page)
+            + "</script><script>unrelated</script>"
+        ).encode()
+        with patch("scraper.requests.get", return_value=response) as get:
+            result = scraper.MeetupScrape()
+        self.assertEqual(result, [meetup_event()])
+        get.assert_called_once_with(scraper.url, timeout=30)
+        response.raise_for_status.assert_called_once()
+
+    def test_scraper_reports_missing_payload(self) -> None:
+        response = MagicMock(content=b"<html></html>")
+        with patch("scraper.requests.get", return_value=response):
+            with self.assertRaisesRegex(ValueError, "__NEXT_DATA__"):
+                scraper.MeetupScrape()
+
+    def test_discord_uses_sdk_values_and_stringifies_cover(self) -> None:
+        event = MagicMock()
+        event.id = 456
+        event.name = "Workshop"
+        event.start_time = datetime.datetime.fromisoformat("2026-10-04T22:30:00+00:00")
+        event.end_time = None
+        event.user_count = 3
+        event.cover_image = "https://example.com/cover.png"
+        guild = MagicMock()
+        guild.fetch_scheduled_events = AsyncMock(return_value=[event])
+        client = MagicMock()
+        client.guilds = [guild]
+        client.event.side_effect = lambda callback: callback
+        client.close = AsyncMock()
+        client.is_closed.return_value = True
+
+        async def start(token: str) -> None:
+            self.assertEqual(token, "test-token")
+            callback = client.event.call_args.args[0]
+            await callback()
+
+        client.start = AsyncMock(side_effect=start)
+        with patch("discorder.discord.Client", return_value=client):
+            result = discorder.discordEvents("test-token")
+        self.assertEqual(result[0].imageurl, "https://example.com/cover.png")
+        client.close.assert_awaited_once()
+
+        # Errors in SDK callbacks must reach the collector rather than publish []
+        # or a partially collected list as if validation had succeeded.
+        event.user_count = "3"
+        client.close.reset_mock()
+        with patch("discorder.discord.Client", return_value=client):
+            with self.assertRaises(ValidationError):
+                discorder.discordEvents("test-token")
+        client.close.assert_awaited_once()
+
+    def test_flask_details_match_both_id_types(self) -> None:
+        for event in (meetup_event(), Eventer.from_discord(discord_payload())):
+            events = sign_events([event])
+            with patch("app.get_events", return_value=events):
+                with patch("app.render_template", return_value="event") as render:
+                    self.assertEqual(app.event_detail(int(event.ID)), "event")
+                    render.assert_called_once_with("event_detail.html", event=events[0])
+                self.assertEqual(app.event_detail(999), ("Event not found", 404))
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -1,68 +1,86 @@
 import datetime
+from typing import Self
 
-# each event gets an object to itself
-
+from models import DiscordEvent, EventId, EventSource, MeetupEvent, StrictModel
 
 discordDelt = datetime.timedelta(hours=-4)
+type FormattedDate = tuple[str, str | datetime.timedelta, str, float]
 
 
-class Eventer:
-    def __init__(self, eventjson, source):
-        self.data = eventjson
-        if source == "Meetup":
-            self.ID = eventjson["id"]
-            self.attendees = eventjson["going"]["totalCount"] - len(
-                eventjson["eventHosts"]
-            )
-            self.date, self.duration, self.start, self.index = self.MUdateFormatter(
-                eventjson["dateTime"]
-            )
-            self.title = eventjson["title"]
-            self.source = source
-            if eventjson["feeSettings"]:
-                self.free = False
-            else:
-                self.free = True
-            self.imageid = eventjson["featuredEventPhoto"]["__ref"]
-            self.imageurl = ""
-        elif source == "Discord":
-            self.ID = eventjson["id"]
-            self.attendees = eventjson["interested_count"]
-            self.date, self.duration, self.start, self.index = self.DCdateFormatter()
-            self.title = eventjson["name"]
-            self.free = True
-            self.imageid = ""
-            self.imageurl = (
-                eventjson["imageurl"]
-                if eventjson["imageurl"] is not None
-                else "/static/Members-Only-Event.png"
-            )
-            self.source = source
+class Eventer(StrictModel):
+    ID: EventId
+    attendees: int
+    date: str
+    duration: str | datetime.timedelta
+    start: str
+    index: float
+    title: str
+    source: EventSource
+    free: bool
+    imageid: str = ""
+    imageurl: str = ""
 
-    def updateimageURL(self, url):
+    @classmethod
+    def from_meetup(cls, event: MeetupEvent, image_url: str) -> Self:
+        date, duration, start, index = cls.MUdateFormatter(event.dateTime)
+        return cls(
+            ID=event.id,
+            attendees=event.going.totalCount - len(event.eventHosts),
+            date=date,
+            duration=duration,
+            start=start,
+            index=index,
+            title=event.title,
+            source="Meetup",
+            free=not bool(event.feeSettings),
+            imageid=event.featuredEventPhoto.ref,
+            imageurl=image_url,
+        )
+
+    @classmethod
+    def from_discord(cls, event: DiscordEvent) -> Self:
+        date, duration, start, index = cls.DCdateFormatter(event)
+        return cls(
+            ID=event.id,
+            attendees=event.interested_count,
+            date=date,
+            duration=duration,
+            start=start,
+            index=index,
+            title=event.name,
+            source="Discord",
+            free=True,
+            imageurl=event.imageurl or "/static/Members-Only-Event.png",
+        )
+
+    def updateimageURL(self, url: str) -> None:
         self.imageurl = url
 
-    def DCdateFormatter(self):
-        startDtTs = (
-            datetime.datetime.strptime(
-                self.data["start_time"][:-6], "%Y-%m-%dT%H:%M:%S"
-            )
-            + discordDelt
+    @staticmethod
+    def DCdateFormatter(event: DiscordEvent) -> FormattedDate:
+        start_dt = datetime.datetime.fromisoformat(event.start_time).replace(
+            tzinfo=None
         )
-        datestring = startDtTs.strftime("%A, %d %B %Y")
-        starttime = startDtTs.strftime("%I:%M%p")
-        index = startDtTs.timestamp()
-        duration = datetime.datetime.strptime(
-            self.data["end_time"][:-6], "%Y-%m-%dT%H:%M:%S"
-        ) - datetime.datetime.strptime(
-            self.data["start_time"][:-6], "%Y-%m-%dT%H:%M:%S"
+        display_dt = start_dt + discordDelt
+        duration = (
+            datetime.datetime.fromisoformat(event.end_time).replace(tzinfo=None)
+            - start_dt
+            if event.end_time is not None
+            else datetime.timedelta()
         )
-        return (datestring, duration, starttime, index)
+        return (
+            display_dt.strftime("%A, %d %B %Y"),
+            duration,
+            display_dt.strftime("%I:%M%p"),
+            display_dt.timestamp(),
+        )
 
-    def MUdateFormatter(self, DT):
-        DtTs = datetime.datetime.strptime(DT[:-6], "%Y-%m-%dT%H:%M:%S")
-        index = DtTs.timestamp()
-        datestring = DtTs.strftime("%A, %d %B %Y")
-        duration = DT[-5:]
-        starttime = DtTs.strftime("%I:%M%p")
-        return (datestring, duration, starttime, index)
+    @staticmethod
+    def MUdateFormatter(dt: str) -> FormattedDate:
+        start_dt = datetime.datetime.fromisoformat(dt).replace(tzinfo=None)
+        return (
+            start_dt.strftime("%A, %d %B %Y"),
+            dt[-5:],
+            start_dt.strftime("%I:%M%p"),
+            start_dt.timestamp(),
+        )

@@ -36,4 +36,12 @@ See [deployment prerequisites](deploy/README.md).
 ```sh
 uv run ruff format .
 uv run ruff check .
+uv run ty check
+uv run python -m unittest discover -s tests
 ```
+
+Python uses fully annotated functions and strict Pydantic models for Meetup,
+Discord, configuration, normalized events, and sign JSON. Wrong field types are
+rejected rather than coerced; model assignments are also validated. Upstream
+models ignore provider fields the sign does not use, while internal models reject
+unexpected fields. Ruff enforces annotations and ty checks the whole project.
