@@ -9,7 +9,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from pydantic import JsonValue, ValidationError
 
-import app
 import discorder
 import jsonolater
 import scraper
@@ -324,15 +323,6 @@ class CollectorTests(unittest.TestCase):
                                 jsonolater.events_json(output)
                 self.assertEqual(output.read_bytes(), b"[]")
                 client.close.assert_awaited_once()
-
-    def test_flask_details_match_both_id_types(self) -> None:
-        for event in (meetup_event(), Eventer.from_discord(discord_payload())):
-            events = sign_events([event])
-            with patch("app.get_events", return_value=events):
-                with patch("app.render_template", return_value="event") as render:
-                    self.assertEqual(app.event_detail(int(event.ID)), "event")
-                    render.assert_called_once_with("event_detail.html", event=events[0])
-                self.assertEqual(app.event_detail(999), ("Event not found", 404))
 
 
 if __name__ == "__main__":

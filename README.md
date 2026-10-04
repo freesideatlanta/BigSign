@@ -21,7 +21,8 @@ bash start-server.sh
 ```
 
 Open <http://localhost:8080/freeside-sign.html>. Rerun the fetch script to update
-events; reload the browser to show them immediately.
+events; reload the browser to show them immediately. The server serves the static
+sign and generated JSON; event collection runs separately.
 
 ## Deploy
 

@@ -1,4 +1,4 @@
-"""Collect and normalize events for both JSON output and Flask."""
+"""Collect and normalize events for the sign's JSON output."""
 
 import os
 from collections.abc import Iterable
