@@ -5,4 +5,4 @@ curl -fsS --retry 30 --retry-connrefused --retry-delay 1 --max-time 5 \
 exec /usr/bin/chromium --ozone-platform=wayland \
     --user-data-dir="$HOME/.local/share/freeside-kiosk" \
     --kiosk --noerrdialogs --disable-infobars --no-first-run --incognito \
-    --force-device-scale-factor=3 http://localhost:8080/
+    --force-device-scale-factor=3 'http://localhost:8080/?portrait'
