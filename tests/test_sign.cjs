@@ -55,7 +55,7 @@ function loadSign(fetch = async () => { throw new Error("Network unavailable"); 
       // Successful fixtures default to a recent collection unless overridden.
       return { headers: { get: () => new Date().toUTCString() }, ...response };
     },
-    console: { error: () => {} },
+    console: { error: () => {}, warn: () => {} },
   });
   // Exercise the real page functions while controlling initialization and timers.
   vm.runInContext(script.replace(/init\(\);\s*$/, ''), context);
@@ -69,7 +69,7 @@ test('event text remains literal instead of entering HTML markup', () => {
     index: Date.parse('2026-10-05T00:30:00Z') / 1000}]; buildCards();`);
   const [separator, card] = elements.get('scrollTrack').children;
   assert.equal(card.querySelector('.event-title').textContent, 'Workshop <em> & friends');
-  assert.equal(card.querySelector('.event-time-text').textContent, '06:30PM');
+  assert.equal(card.querySelector('.event-time-text').textContent, '6:30 PM');
   assert.ok(!card.innerHTML.includes('event-source'));
   assert.ok(!card.innerHTML.includes('Meetup'));
   assert.equal(card.querySelector('.attendee-count').textContent, '3 going');
@@ -94,7 +94,8 @@ test('overflow scrolls within bounds and clamps after a resize', () => {
   run('getHeights();');
   elements.get('scrollTrack').scrollHeight = 1000;
   run('getHeights(); scrollStep(100); pausing = false; scrollStep(1100);');
-  assert.equal(run('scrollY'), 30);
+  assert.equal(run('scrollY'), 200);
+  assert.equal(run('pausing'), true);
   run('scrollStep(10100);');
   assert.equal(run('scrollY'), 200);
   assert.equal(run('scrollDir'), -1);
@@ -125,10 +126,11 @@ test('event images use the supplied URL and missing images leave the date visibl
   assert.ok(withoutImage.innerHTML.includes('event-date-block'));
   image.listeners.get('error')();
   assert.equal(image.hidden, true);
-  assert.match(elements.get('errorFooter').textContent, /Failed to load event image for With image/);
+  assert.equal(elements.has('errorFooter'), false);
+  assert.equal(elements.has('wifiDetails'), false);
 });
 
-test('refresh errors replace Wi-Fi details and retain events, then recovery restores Wi-Fi', async () => {
+test('refresh errors retain Wi-Fi and events, then recovery clears the status', async () => {
   let fails = true;
   const { elements, run } = loadSign(async () => {
     if (fails) return { ok: false, status: 503 };
@@ -138,26 +140,26 @@ test('refresh errors replace Wi-Fi details and retain events, then recovery rest
     index: Date.parse('2026-10-05T00:30:00Z') / 1000}]; buildCards();`);
   const previousCards = elements.get('scrollTrack').children;
   await run('init();');
-  assert.equal(elements.get('errorFooter').hidden, false);
-  assert.equal(elements.get('wifiDetails').hidden, true);
-  assert.match(elements.get('errorFooter').textContent, /HTTP 503/);
+  assert.equal(elements.has('wifiDetails'), false);
+  assert.match(elements.get('errorFooter').textContent, /Showing the last available schedule/);
   assert.equal(elements.get('scrollTrack').children, previousCards);
   fails = false;
   await run('init();');
-  assert.equal(elements.get('errorFooter').hidden, true);
-  assert.equal(elements.get('wifiDetails').hidden, false);
+  assert.equal(elements.has('wifiDetails'), false);
   assert.equal(elements.get('errorFooter').textContent, '');
 });
 
-test('network and rendering failures show their actual error messages', async () => {
+test('initial network and rendering failures show a readable unavailable state', async () => {
   const network = loadSign();
   await network.run('init();');
-  assert.equal(network.elements.get('errorFooter').textContent, 'Error: Network unavailable');
+  assert.match(network.elements.get('errorFooter').textContent, /Please check back shortly/);
+  assert.equal(network.elements.get('scrollTrack').children[0].textContent, 'Events are temporarily unavailable.');
   const rendering = loadSign(async () => ({ ok: true, json: async () => [
     { index: 1e20, title: 'Invalid date' }
   ] }));
   await rendering.run('init();');
-  assert.match(rendering.elements.get('errorFooter').textContent, /Invalid time value/);
+  assert.match(rendering.elements.get('errorFooter').textContent, /Events could not be refreshed/);
+  assert.equal(rendering.elements.get('scrollTrack').children[0].textContent, 'Events are temporarily unavailable.');
 });
 
 test('invalid refresh payloads preserve the previous events and cards', async () => {
@@ -172,7 +174,7 @@ test('invalid refresh payloads preserve the previous events and cards', async ()
     await run('init();');
     assert.equal(elements.get('scrollTrack').children, previousCards);
     assert.equal(run('events'), previousEvents);
-    assert.match(elements.get('errorFooter').textContent, /Error:/);
+    assert.match(elements.get('errorFooter').textContent, /Events could not be refreshed/);
   }
 });
 
@@ -192,7 +194,7 @@ test('stale collection warns even on HTTP success and fresh collection recovers'
     headers: {get: () => new Date(timestamp).toUTCString()}}));
   await run('init();');
   assert.match(elements.get('errorFooter').textContent, /over two hours old/);
-  assert.equal(elements.get('wifiDetails').hidden, true);
+  assert.equal(elements.has('wifiDetails'), false);
   timestamp = Date.now();
   await run('init();');
   assert.equal(elements.get('errorFooter').textContent, '');
@@ -207,5 +209,73 @@ test('missing collection timestamp reports an error and preserves cards', async 
   const previousCards = elements.get('scrollTrack').children;
   await run('init();');
   assert.equal(elements.get('scrollTrack').children, previousCards);
-  assert.match(elements.get('errorFooter').textContent, /timestamp is missing or invalid/);
+  assert.match(elements.get('errorFooter').textContent, /Events could not be refreshed/);
+});
+
+
+test('empty schedules explain the absence of events', () => {
+  const { elements, run } = loadSign();
+  run('buildCards();');
+  assert.equal(elements.get('scrollTrack').children[0].textContent, 'No upcoming events. Check back soon!');
+});
+
+test('time labels use spaced AM/PM without leading zeros', () => {
+  const { run } = loadSign();
+  assert.equal(run("formatEventTime('06:30PM')"), '6:30 PM');
+  assert.equal(run("formatEventTime('12:00am')"), '12:00 AM');
+  assert.equal(run("formatEventTime('06:30PM - 08:00PM')"), '6:30 PM - 8:00 PM');
+  assert.equal(run("formatEventTime('TBA')"), 'TBA');
+  run('updateClock();');
+  assert.match(run("document.getElementById('clock').textContent"), /^\d{1,2}:\d{2} [AP]M$/);
+});
+
+test('reading stops align with rows and keep date headings with their first event', () => {
+  const { elements, run } = loadSign();
+  run('getHeights();');
+  const track = elements.get('scrollTrack');
+  elements.get('scrollWrapper').clientHeight = 400;
+  track.scrollHeight = 1200;
+  track.children = [
+    {className: 'date-sep', offsetTop: 0},
+    {className: 'event-card free', offsetTop: 40},
+    {className: 'event-card free', offsetTop: 200},
+    {className: 'date-sep', offsetTop: 360},
+    {className: 'event-card paid', offsetTop: 400},
+    {className: 'event-card paid', offsetTop: 560},
+    {className: 'event-card paid', offsetTop: 720},
+    {className: 'event-card paid', offsetTop: 880},
+  ];
+  run('getHeights();');
+  assert.deepEqual(Array.from(run('scrollStops')), [0, 360, 720, 800]);
+  run('scrollStep(100); pausing = false; scrollStep(1100);');
+  assert.equal(run('scrollY'), 360);
+  assert.equal(run('pausing'), true);
+  assert.equal(run('scrollDir'), 1);
+  run('scrollStep(2100);');
+  assert.equal(run('scrollY'), 360);
+  run('pausing = false; scrollStep(3100);');
+  assert.equal(run('scrollY'), 720);
+  run('pausing = false; scrollStep(4100);');
+  assert.equal(run('scrollY'), 800);
+  assert.equal(run('scrollDir'), -1);
+  run('pausing = false; scrollStep(5100);');
+  assert.equal(run('scrollY'), 0);
+});
+
+test('successful refresh replaces an empty state with events and back again', async () => {
+  let payload = [];
+  const { elements, run } = loadSign(async () => ({ok: true, json: async () => payload}));
+  await run('init();');
+  assert.equal(elements.get('scrollTrack').children.length, 1);
+  await run('init();');
+  assert.equal(elements.get('scrollTrack').children.length, 1);
+  payload = [{index: Date.now() / 1000 + 3600, title: 'New event', time: '06:30PM',
+    free: true, attendees: 0, image_url: null}];
+  await run('init();');
+  const [, card] = elements.get('scrollTrack').children;
+  assert.equal(card.querySelector('.event-title').textContent, 'New event');
+  payload = [];
+  await run('init();');
+  assert.equal(elements.get('scrollTrack').children.length, 1);
+  assert.equal(elements.get('scrollTrack').children[0].textContent, 'No upcoming events. Check back soon!');
 });
