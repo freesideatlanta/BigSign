@@ -1,0 +1,35 @@
+# Python environments and generated files
+myenv/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# Credentials and local configuration
+.env
+.env.*
+!.env.example
+.aws/
+
+# Runtime event data, logs, and local archives
+/eventsdata.json
+*.log
+/archive.tar.gz
+
+# Local tooling and editor files
+.agents/
+.codex/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.swp
+*~

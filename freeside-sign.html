@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Freeside Atlanta — Upcoming Events</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Bitcount+Grid+Double:wght@100..900&family=Limelight&family=Ubuntu+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+
+  :root {
+    --bg:        #BDC7CB;
+    --surface:   #181818;
+    --border:    #2a2a2a;
+    --accent:    #010A18;   /* industrial amber */
+    --accent2:   #0F4106;  /* free-event green */
+    --text:      #000000;
+    --muted:     #000000;
+    --free-bg:   rgba(72, 209, 65, 0.12);
+    --paid-bg:   rgba(245, 166, 35, 0.08);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Space Grotesk', sans-serif;
+    overflow: hidden;
+  }
+  * {
+    cursor: none !important;
+  }
+  /* ── HEADER ─────────────────────────────────────────────── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 36px 14px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+    flex-shrink: 0;
+  }
+
+  .logo-area {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+  }
+
+  .logo-text {
+    font-family: 'Limelight', monospace;
+    font-weight: 700;
+    font-size: 1.6 rem;
+    letter-spacing: -0.02em;
+    color: var(--accent);
+  }
+
+  .logo-sub {
+    font-size: 4.5 rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+  }
+
+  .header-right {
+    text-align: right;
+  }
+
+  .clock {
+    font-family: 'Bitcount Grid Double', monospace;
+    font-size: 4 rem;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1;
+  }
+
+  .date-display {
+    font-size: 3.6 rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-top: 3px;
+  }
+
+  /* ── SCROLL CONTAINER ────────────────────────────────────── */
+  .scroll-wrapper {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .scroll-track {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    will-change: transform;
+  }
+
+  /* ── EVENT CARD ──────────────────────────────────────────── */
+  .event-card {
+    display: grid;
+    grid-template-columns: 96px 1fr auto;
+    align-items: center;
+    gap: 0 24px;
+    padding: 16px 36px;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.2s;
+    min-height: 90px;
+  }
+
+  .event-card.free  { background: var(--free-bg); }
+  .event-card.paid  { background: var(--paid-bg); }
+
+  /* date block */
+  .event-date-block {
+    text-align: center;
+    flex-shrink: 0;
+  }
+
+  .event-dow {
+    font-family: 'Ubuntu Mono', monospace;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--muted);
+  }
+
+  .event-day {
+    font-family: 'Space Mono', monospace;
+    font-size: 2.4rem;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--accent);
+  }
+
+  .event-month {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    margin-top: 1px;
+  }
+
+  /* main info */
+  .event-info { min-width: 0; }
+
+  .event-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.2;
+    margin-bottom: 4px;
+  }
+
+  .event-meta {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+
+  .meta-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 1rem;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+  }
+
+  .meta-item svg {
+    flex-shrink: 0;
+    opacity: 0.6;
+  }
+
+  /* badge */
+  .event-badge {
+    flex-shrink: 0;
+    text-align: right;
+  }
+
+  .badge {
+    display: inline-block;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding: 4px 10px;
+    border-radius: 2px;
+  }
+
+  .badge.free {
+    background: var(--accent2);
+    color: #fff;
+  }
+
+  .badge.paid {
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+  }
+
+  .attendee-count {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--muted);
+    margin-top: 5px;
+    text-align: right;
+  }
+
+  /* ── DATE SEPARATOR ──────────────────────────────────────── */
+  .date-sep {
+    padding: 8px 36px 6px;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .date-sep-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--accent);
+    white-space: nowrap;
+  }
+
+  .date-sep-line {
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* ── FOOTER ──────────────────────────────────────────────── */
+  footer {
+    padding: 8px 36px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    background: var(--bg);
+  }
+
+  .footer-left {
+    font-size: 0.7rem;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+  }
+
+  .footer-right {
+    font-size: 0.7rem;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+  }
+
+  .refresh-bar {
+    width: 120px;
+    height: 2px;
+    background: var(--border);
+    border-radius: 1px;
+    overflow: hidden;
+    display: inline-block;
+    vertical-align: middle;
+    margin-left: 8px;
+  }
+
+  .refresh-bar-fill {
+    height: 100%;
+    background: var(--accent);
+    width: 0%;
+    transition: width 1s linear;
+  }
+
+  /* ── LAYOUT ──────────────────────────────────────────────── */
+  body {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-area">
+    <span class="logo-text">FREESIDE ATLANTA</span>
+    <span class="logo-sub">Upcoming Events</span>
+  </div>
+  <div class="header-right">
+    <div class="clock" id="clock">--:--</div>
+    <div class="date-display" id="datedisp">---</div>
+  </div>
+</header>
+
+<div class="scroll-wrapper" id="scrollWrapper">
+  <div class="scroll-track" id="scrollTrack">
+    <!-- cards injected here -->
+  </div>
+</div>
+
+<footer>
+  <div class="footer-left" id="eventCount">-- events</div>
+  <div class="footer-right">
+    Refreshes hourly
+    <span class="refresh-bar"><span class="refresh-bar-fill" id="refreshFill"></span></span>
+  </div>
+</footer>
+
+<script>
+// ── CONFIG ────────────────────────────────────────────────────
+const JSON_PATH = 'eventsdata.json';   // same folder as this HTML
+const REFRESH_MS  = 60 * 60 * 1000;   // 1 hour
+const SCROLL_PPS  = 30;               // pixels per second (scroll down)
+const SCROLL_PPS_UP = 1000;             // pixels per second (scroll up)
+const PAUSE_TOP_MS = 4000;            // pause at top before scrolling
+
+// ── STATE ─────────────────────────────────────────────────────
+let events = [];
+let scrollY = 0;
+let scrollRAF = null;
+let lastTs = null;
+let pausing = true;
+let pauseTimer = null;
+let totalHeight = 0;
+let visibleHeight = 0;
+
+// ── CLOCK ─────────────────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2,'0');
+  const m = String(now.getMinutes()).padStart(2,'0');
+  document.getElementById('clock').textContent = `${h}:${m}`;
+  document.getElementById('datedisp').textContent =
+    now.toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric'});
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ── REFRESH PROGRESS BAR ──────────────────────────────────────
+const fillEl = document.getElementById('refreshFill');
+let refreshStart = Date.now();
+function updateBar() {
+  const pct = Math.min(100, ((Date.now() - refreshStart) / REFRESH_MS) * 100);
+  fillEl.style.width = pct + '%';
+}
+setInterval(updateBar, 1000);
+
+// ── DATA FETCH ────────────────────────────────────────────────
+async function fetchEvents() {
+  try {
+    const r = await fetch(JSON_PATH + '?_=' + Date.now(), { cache: 'no-store' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
+    // sort by index (unix timestamp) ascending, filter past events
+    const now = Date.now() / 1000;
+    events = data
+      .filter(e => e.index >= now - 3600) // keep events starting up to 1hr ago
+      .sort((a, b) => a.index - b.index);
+  } catch(err) {
+    console.error('Failed to load events:', err);
+  }
+}
+
+// ── RENDER ────────────────────────────────────────────────────
+function buildCards() {
+  const track = document.getElementById('scrollTrack');
+  track.innerHTML = '';
+
+  let lastDate = null;
+  const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  events.forEach(ev => {
+    const d = new Date(ev.index * 1000);
+    const dateKey = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+
+    if (dateKey !== lastDate) {
+      lastDate = dateKey;
+      const sep = document.createElement('div');
+      sep.className = 'date-sep';
+      sep.innerHTML = `
+        <span class="date-sep-label">${days[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()}</span>
+        <span class="date-sep-line"></span>`;
+      track.appendChild(sep);
+    }
+
+    const card = document.createElement('div');
+    card.className = 'event-card ' + (ev.free ? 'free' : 'paid');
+
+    const timeStr = ev.time;
+    const day = d.getDate();
+    const dow = days[d.getDay()].slice(0,3).toUpperCase();
+    const mon = months[d.getMonth()].toUpperCase();
+
+    card.innerHTML = `
+      <div class="event-date-block">
+        <div class="event-dow">${dow}</div>
+        <div class="event-day">${String(day).padStart(2,'0')}</div>
+        <div class="event-month">${mon}</div>
+      </div>
+      <div class="event-info">
+        <div class="event-title">${ev.title}</div>
+        <div class="event-meta">
+          <span class="meta-item">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            ${timeStr}
+          </span>
+          <span class="meta-item">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            ${ev.source}
+          </span>
+        </div>
+      </div>
+      <div class="event-badge">
+        <span class="badge ${ev.free ? 'free' : 'paid'}">${ev.free ? 'FREE' : 'PAID'}</span>
+        ${ev.attendees > 0 ? `<div class="attendee-count">${ev.attendees} going</div>` : ''}
+      </div>`;
+
+    track.appendChild(card);
+  });
+
+  document.getElementById('eventCount').textContent =
+    `${events.length} upcoming event${events.length !== 1 ? 's' : ''}`;
+}
+
+// ── SCROLL LOOP ───────────────────────────────────────────────
+function getHeights() {
+  const wrapper = document.getElementById('scrollWrapper');
+  const track   = document.getElementById('scrollTrack');
+  visibleHeight = wrapper.clientHeight;
+  totalHeight   = track.scrollHeight;
+}
+
+let scrollDir = 1; // 1 = down, -1 = up
+
+function pauseThenScroll(dir) {
+  pausing = true;
+  scrollDir = dir;
+  clearTimeout(pauseTimer);
+  pauseTimer = setTimeout(() => { pausing = false; }, PAUSE_TOP_MS);
+}
+
+function resetScroll() {
+  scrollY = 0;
+  document.getElementById('scrollTrack').style.transform = 'translateY(0px)';
+  pauseThenScroll(1);
+}
+
+function scrollStep(ts) {
+  if (!lastTs) lastTs = ts;
+  const dt = (ts - lastTs) / 1000;
+  lastTs = ts;
+
+  if (!pausing) {
+    const speed = scrollDir === 1 ? SCROLL_PPS : SCROLL_PPS_UP;
+    scrollY += speed * dt * scrollDir;
+    const maxScroll = totalHeight - visibleHeight;
+    if (scrollY >= maxScroll) {
+      scrollY = maxScroll;
+      pauseThenScroll(-1); // pause at bottom, then scroll up
+    } else if (scrollY <= 0) {
+      scrollY = 0;
+      pauseThenScroll(1);  // pause at top, then scroll down
+    }
+    document.getElementById('scrollTrack').style.transform = `translateY(-${scrollY}px)`;
+  }
+
+  scrollRAF = requestAnimationFrame(scrollStep);
+}
+
+// ── INIT & REFRESH ────────────────────────────────────────────
+async function init() {
+  await fetchEvents();
+  buildCards();
+  getHeights();
+  resetScroll();
+  cancelAnimationFrame(scrollRAF);
+  lastTs = null;
+  scrollRAF = requestAnimationFrame(scrollStep);
+}
+
+// Hourly refresh
+setInterval(async () => {
+  refreshStart = Date.now();
+  fillEl.style.transition = 'none';
+  fillEl.style.width = '0%';
+  setTimeout(() => { fillEl.style.transition = 'width 1s linear'; }, 50);
+  await fetchEvents();
+  buildCards();      // ← this must be here
+  getHeights();
+  resetScroll();
+}, REFRESH_MS);
+
+window.addEventListener('resize', getHeights);
+
+init();
+</script>
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    document.documentElement.requestPointerLock();
+  });
+</script>
+</body>
+</html>
