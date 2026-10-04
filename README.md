@@ -24,6 +24,10 @@ Open <http://localhost:8080/freeside-sign.html>. Rerun the fetch script to updat
 events; reload the browser to show them immediately. The server serves the static
 sign and generated JSON; event collection runs separately.
 
+Generated `eventsdata.json` contains event IDs, timestamps, titles, display dates
+and times, free/paid flags, sources, attendee counts, and image URLs. Missing
+images are represented as `null`.
+
 ## Deploy
 
 ```sh

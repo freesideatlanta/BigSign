@@ -34,7 +34,7 @@ class Eventer(StrictModel):
     title: str
     source: EventSource
     free: bool
-    imageurl: str = ""
+    imageurl: str | None = None
 
     @classmethod
     def from_meetup(cls, event: MeetupEvent, image_url: str) -> Self:
@@ -69,5 +69,5 @@ class Eventer(StrictModel):
             title=event.name,
             source="Discord",
             free=True,
-            imageurl=event.imageurl or "/static/Members-Only-Event.png",
+            imageurl=event.imageurl,
         )

@@ -69,13 +69,9 @@ class SignEvent(StrictModel):
     id: EventId
     index: float
     title: str
-    group: str = "Humans, hopefully"
     date: str
     time: str
-    venue: str = "FreesideProbably"
     free: bool
     source: EventSource
-    description: str = "maybe in the future we can distill the description using an LLM"
     attendees: int
-    image_url: str
-    rsvp_link: str = "caint rsvp on a tv"
+    image_url: str | None

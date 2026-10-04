@@ -131,7 +131,7 @@ class ModelTests(unittest.TestCase):
         payload.end_time = None
         event = Eventer.from_discord(payload)
         self.assertIsNone(event.duration)
-        self.assertEqual(event.imageurl, "/static/Members-Only-Event.png")
+        self.assertIsNone(event.imageurl)
         self.assertEqual(event.start, "06:30PM")
 
     def test_deduplication_is_repeatable(self) -> None:
@@ -173,16 +173,12 @@ class ModelTests(unittest.TestCase):
                 "id",
                 "index",
                 "title",
-                "group",
                 "date",
                 "time",
-                "venue",
                 "free",
                 "source",
-                "description",
                 "attendees",
                 "image_url",
-                "rsvp_link",
             },
         )
 
