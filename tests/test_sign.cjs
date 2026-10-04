@@ -94,8 +94,8 @@ test('overflow scrolls within bounds and clamps after a resize', () => {
   run('getHeights();');
   elements.get('scrollTrack').scrollHeight = 1000;
   run('getHeights(); scrollStep(100); pausing = false; scrollStep(1100);');
-  assert.equal(run('scrollY'), 200);
-  assert.equal(run('pausing'), true);
+  assert.equal(run('scrollY'), 150);
+  assert.equal(run('pausing'), false);
   run('scrollStep(10100);');
   assert.equal(run('scrollY'), 200);
   assert.equal(run('scrollDir'), -1);
@@ -246,19 +246,24 @@ test('reading stops align with rows and keep date headings with their first even
     {className: 'event-card paid', offsetTop: 880},
   ];
   run('getHeights();');
-  assert.deepEqual(Array.from(run('scrollStops')), [0, 360, 720, 800]);
+  assert.deepEqual(Array.from(run('scrollStops')), [0, 200, 360, 560, 720, 800]);
   run('scrollStep(100); pausing = false; scrollStep(1100);');
-  assert.equal(run('scrollY'), 360);
-  assert.equal(run('pausing'), true);
-  assert.equal(run('scrollDir'), 1);
+  assert.equal(run('scrollY'), 150);
+  assert.equal(run('pausing'), false);
   run('scrollStep(2100);');
-  assert.equal(run('scrollY'), 360);
-  run('pausing = false; scrollStep(3100);');
-  assert.equal(run('scrollY'), 720);
-  run('pausing = false; scrollStep(4100);');
-  assert.equal(run('scrollY'), 800);
-  assert.equal(run('scrollDir'), -1);
-  run('pausing = false; scrollStep(5100);');
+  assert.equal(run('scrollY'), 200);
+  assert.equal(run('pausing'), true);
+  run('scrollStep(3100);');
+  assert.equal(run('scrollY'), 200);
+  let timestamp = 3100;
+  for (const stop of [360, 560, 720, 800]) {
+    timestamp += 2000;
+    run(`pausing = false; scrollStep(${timestamp});`);
+    assert.equal(run('scrollY'), stop);
+    assert.equal(run('pausing'), true);
+    assert.equal(run('scrollDir'), stop === 800 ? -1 : 1);
+  }
+  run(`pausing = false; scrollStep(${timestamp + 1000});`);
   assert.equal(run('scrollY'), 0);
 });
 

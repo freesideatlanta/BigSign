@@ -386,7 +386,7 @@ const DISPLAY_TIME_ZONE = 'America/New_York';
 const JSON_PATH = 'eventsdata.json';   // same folder as this HTML
 const REFRESH_MS  = 60 * 60 * 1000;   // 1 hour
 const MAX_DATA_AGE_MS = 2 * REFRESH_MS;
-const SCROLL_PPS  = 600;              // brief transition between reading positions
+const SCROLL_PPS  = 150;              // slower transition between reading positions
 const SCROLL_PPS_UP = 1000;             // pixels per second (scroll up)
 const READING_PAUSE_MS = 10000;       // hold each group of rows for reading
 
@@ -569,7 +569,8 @@ function getHeights() {
   visibleHeight = wrapper.clientHeight;
   totalHeight   = track.scrollHeight;
   const maxScroll = Math.max(0, totalHeight - visibleHeight);
-  // Stop at row boundaries, keeping a date heading with its first event.
+  const stepHeight = visibleHeight * 0.5;
+  // Advance about half a screen, keeping a date heading with its first event.
   const boundaries = Array.from(track.children)
     .filter((child, index, children) =>
       child.className === 'date-sep' ||
@@ -579,8 +580,8 @@ function getHeights() {
   scrollStops = [0];
   while (scrollStops.at(-1) < maxScroll && visibleHeight > 0) {
     const current = scrollStops.at(-1);
-    const candidates = boundaries.filter(offset => offset > current && offset <= current + visibleHeight);
-    const next = candidates.at(-1) ?? Math.min(current + visibleHeight, maxScroll);
+    const candidates = boundaries.filter(offset => offset > current && offset <= current + stepHeight);
+    const next = candidates.at(-1) ?? Math.min(current + stepHeight, maxScroll);
     scrollStops.push(next);
   }
   scrollY = Math.min(scrollY, maxScroll);
