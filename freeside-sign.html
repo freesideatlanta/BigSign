@@ -4,6 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Freeside Atlanta — Upcoming Events</title>
+<script data-kiosk>
+if (new URLSearchParams(location.search).has('portrait')) {
+  document.documentElement.classList.add('portrait');
+}
+</script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Bitcount+Grid+Double:wght@100..900&family=Limelight&family=Ubuntu+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap');
 
@@ -91,6 +96,7 @@
   /* ── SCROLL CONTAINER ────────────────────────────────────── */
   .scroll-wrapper {
     flex: 1;
+    min-height: 0;
     overflow: hidden;
     position: relative;
   }
@@ -271,7 +277,7 @@
     border-top: 1px solid var(--border);
     flex-shrink: 0;
     background: var(--bg);
-    font-family: 'Ubuntu Mono', monospace;
+    font-family: Arial, sans-serif;
     font-size: 0.85rem;
     overflow-wrap: anywhere;
   }
@@ -288,6 +294,18 @@
     line-height: 1.5;
   }
 
+  .wifi-heading {
+    font-size: 1.8rem;
+    font-weight: 700;
+    line-height: 1.2;
+    margin-bottom: 10px;
+  }
+
+  .wifi-value {
+    font-family: 'Ubuntu Mono', monospace;
+    font-weight: 700;
+  }
+
   .wifi-qr { flex-shrink: 0; }
   #errorFooter { color: #b00020; }
 
@@ -296,6 +314,14 @@
     display: flex;
     flex-direction: column;
     height: 100vh;
+  }
+
+  html.portrait body {
+    position: absolute;
+    width: 100vh;
+    height: 100vw;
+    transform-origin: top left;
+    transform: translateY(100vh) rotate(-90deg);
   }
 </style>
 </head>
@@ -321,9 +347,8 @@
 <footer>
   <div id="wifiDetails">
     <div class="wifi-copy">
-      <strong>Connect to Wi-Fi</strong><br>
-      Network: <strong>Freeside-Members</strong> &nbsp; Password: <strong>terminus</strong><br>
-      Scan the QR code to connect.
+      <div class="wifi-heading">Scan to connect</div>
+      <div>Network: <span class="wifi-value">Freeside-Members</span> &nbsp; Password: <span class="wifi-value">terminus</span></div>
     </div>
     <svg class="wifi-qr" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 37 37" width="132" height="132" role="img" aria-label="Scan to join Freeside-Members Wi-Fi" shape-rendering="crispEdges">
       <rect width="37" height="37" fill="var(--bg)"/>
