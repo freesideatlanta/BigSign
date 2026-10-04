@@ -42,7 +42,10 @@ uv run ruff format .
 uv run ruff check .
 uv run ty check
 uv run python -m unittest discover -s tests
+node --test tests/test_sign.cjs
 ```
+
+The sign tests require Node.js 18 or newer and use its built-in test runner.
 
 Python uses fully annotated functions and strict Pydantic models for Meetup,
 Discord, configuration, normalized events, and sign JSON. Wrong field types are

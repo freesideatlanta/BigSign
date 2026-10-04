@@ -396,7 +396,6 @@ function buildCards() {
     const card = document.createElement('div');
     card.className = 'event-card ' + (ev.free ? 'free' : 'paid');
 
-    const timeStr = ev.time;
     const day = parts.day;
     const dow = parts.weekday.slice(0,3).toUpperCase();
     const mon = parts.month.toUpperCase();
@@ -408,23 +407,29 @@ function buildCards() {
         <div class="event-month">${mon}</div>
       </div>
       <div class="event-info">
-        <div class="event-title">${ev.title}</div>
+        <div class="event-title"></div>
         <div class="event-meta">
-          <span class="meta-item">
+          <span class="meta-item event-time">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-            ${timeStr}
+            <span class="event-time-text"></span>
           </span>
           <span class="meta-item">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-            ${ev.source}
+            <span class="event-source"></span>
           </span>
         </div>
       </div>
       <div class="event-badge">
         <span class="badge ${ev.free ? 'free' : 'paid'}">${ev.free ? 'FREE' : 'PAID'}</span>
-        ${ev.attendees > 0 ? `<div class="attendee-count">${ev.attendees} going</div>` : ''}
+        ${ev.attendees > 0 ? '<div class="attendee-count"></div>' : ''}
       </div>`;
 
+    card.querySelector('.event-title').textContent = ev.title;
+    card.querySelector('.event-time-text').textContent = ev.time;
+    card.querySelector('.event-source').textContent = ev.source;
+    if (ev.attendees > 0) {
+      card.querySelector('.attendee-count').textContent = `${ev.attendees} going`;
+    }
     track.appendChild(card);
   });
 
