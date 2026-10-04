@@ -36,6 +36,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px 20px;
     padding: 18px 36px 14px;
     border-bottom: 1px solid var(--border);
     background: var(--bg);
@@ -44,8 +46,9 @@
 
   .logo-area {
     display: flex;
-    align-items: baseline;
-    gap: 12px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
   }
 
   .logo-text {
@@ -57,26 +60,27 @@
   }
 
   .logo-sub {
-    font-size: 4.5rem;
+    font-size: 0.85rem;
     color: var(--muted);
     text-transform: uppercase;
     letter-spacing: 0.12em;
   }
 
   .header-right {
+    margin-left: auto;
     text-align: right;
   }
 
   .clock {
     font-family: 'Bitcount Grid Double', monospace;
-    font-size: 4rem;
+    font-size: 2rem;
     font-weight: 700;
     color: var(--text);
     line-height: 1;
   }
 
   .date-display {
-    font-size: 3.6rem;
+    font-size: 0.8rem;
     color: var(--muted);
     text-transform: uppercase;
     letter-spacing: 0.1em;
