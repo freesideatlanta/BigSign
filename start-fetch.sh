@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
-exec .venv/bin/python jsonolater.py
+exec uv run --locked --no-dev python jsonolater.py

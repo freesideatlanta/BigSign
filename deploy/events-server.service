@@ -1,0 +1,15 @@
+[Unit]
+Description=Freeside Events Web Server
+After=network.target
+
+[Service]
+Type=simple
+User=eventerini
+WorkingDirectory=/home/eventerini/Documents
+Environment=PATH=/home/eventerini/.local/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/bin/bash /home/eventerini/Documents/start-server.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

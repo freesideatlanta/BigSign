@@ -1,45 +1,39 @@
 # Freeside Big Sign
 
-A digital sign showing upcoming Freeside Atlanta events from Meetup and Discord.
+Displays Freeside Atlanta events from Meetup and Discord.
 
-## Local setup
+## Run locally
 
-From the project directory, with Python 3.13 and Bash installed:
+With [uv](https://docs.astral.sh/uv/getting-started/installation/) installed:
 
 ```sh
-python3 -m venv .venv
-.venv/bin/python -m pip install -r requirements.txt
+uv python install 3.13
+uv sync --locked
 cp .env.example .env
 ```
 
-Set `TOKEN` in `.env` to a Discord bot token. The bot must belong to Freeside's
-Discord server; the collector currently reads scheduled events from the bot's
-first server.
+Set `TOKEN` in `.env` to the Freeside Discord bot token. The collector uses the
+bot's first server.
 
 ```sh
 bash start-fetch.sh
 bash start-server.sh
 ```
 
-Open <http://127.0.0.1:8080/freeside-sign.html> in the display's browser.
+Open <http://localhost:8080/freeside-sign.html>. Rerun the fetch script to update
+events; reload the browser to show them immediately.
 
-## Refreshing events
+## Deploy
 
-Run `bash start-fetch.sh` to update `eventsdata.json`. For unattended operation,
-schedule it with cron using the script's absolute path. Fetching requires
-internet access to Meetup and Discord; the server script only serves the display
-and does not collect new events.
+```sh
+python3 deploy/deploy.py
+```
 
-The display reloads the JSON once an hour. Reload the browser to show a fresh
-fetch immediately.
+See [deployment prerequisites](deploy/README.md).
 
-## Known limitations
+## Before committing Python changes
 
-- Discord event times use a fixed UTC−4 offset, which is incorrect during
-  Atlanta's standard time.
-- The fallback image `static/Members-Only-Event.png` is missing.
-- The alternative Flask app (`app.py`) is missing its templates. Use the static
-  display described above.
-- The included server binds to localhost and serves the project directory.
-  For remote displays, host the HTML, event JSON, and image assets separately
-  from the source and `.env`.
+```sh
+uv run ruff format .
+uv run ruff check .
+```

@@ -1,0 +1,1 @@
+0 * * * * PATH=/home/eventerini/.local/bin:/usr/local/bin:/usr/bin:/bin /bin/bash /home/eventerini/Documents/start-fetch.sh >> /home/eventerini/Documents/cron.log 2>&1
