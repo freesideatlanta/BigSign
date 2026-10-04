@@ -54,7 +54,7 @@ LightDM configuration to `/etc/lightdm/lightdm.conf.before-freeside-kiosk`.
 
 The web server listens on port 8080 on all interfaces; allow access from the
 intended LAN. View the sign at
-<http://192.168.1.138:8080/freeside-sign.html>. Data collection runs at the top of
+<http://192.168.1.138:8080/>. Data collection runs at the top of
 each hour; the browser refreshes hourly from the time it starts.
 
 ## Check operation

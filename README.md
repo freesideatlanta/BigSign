@@ -20,9 +20,10 @@ bash start-fetch.sh
 bash start-server.sh
 ```
 
-Open <http://localhost:8080/freeside-sign.html>. Rerun the fetch script to update
+Open <http://localhost:8080/>. Rerun the fetch script to update
 events; reload the browser to show them immediately. The server serves the static
-sign and generated JSON; event collection runs separately.
+sign at `/` and generated JSON at `/eventsdata.json`; other paths return 404.
+Event collection runs separately.
 
 Generated `eventsdata.json` contains event IDs, timestamps, titles, display dates
 and times, free/paid flags, sources, attendee counts, and image URLs. Missing
