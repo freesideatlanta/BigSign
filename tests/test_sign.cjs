@@ -67,3 +67,33 @@ test('event text remains literal instead of entering HTML markup', () => {
   // UTC midnight still belongs to the previous calendar day in Atlanta.
   assert.ok(separator.innerHTML.includes('Sunday, Oct 4'));
 });
+
+test('empty and fitting event lists stay at the top', () => {
+  for (const height of [0, 300, 800]) {
+    const { elements, run } = loadSign();
+    run('getHeights();');
+    elements.get('scrollTrack').scrollHeight = height;
+    run('getHeights(); scrollStep(100); pausing = false; scrollStep(1100);');
+    assert.match(elements.get('scrollTrack').style.transform, /^translateY\(-?0px\)$/);
+    assert.equal(run('scrollY'), 0);
+  }
+});
+
+test('overflow scrolls within bounds and clamps after a resize', () => {
+  const { elements, run } = loadSign();
+  run('getHeights();');
+  elements.get('scrollTrack').scrollHeight = 1000;
+  run('getHeights(); scrollStep(100); pausing = false; scrollStep(1100);');
+  assert.equal(run('scrollY'), 30);
+  run('scrollStep(10100);');
+  assert.equal(run('scrollY'), 200);
+  assert.equal(run('scrollDir'), -1);
+  run('pausing = false; scrollStep(11100);');
+  assert.equal(run('scrollY'), 0);
+  assert.equal(run('scrollDir'), 1);
+  run('pausing = false; scrollStep(12100);');
+  elements.get('scrollWrapper').clientHeight = 1200;
+  run('getHeights();');
+  assert.equal(run('scrollY'), 0);
+  assert.match(elements.get('scrollTrack').style.transform, /^translateY\(-?0px\)$/);
+});

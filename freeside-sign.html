@@ -443,6 +443,8 @@ function getHeights() {
   const track   = document.getElementById('scrollTrack');
   visibleHeight = wrapper.clientHeight;
   totalHeight   = track.scrollHeight;
+  scrollY = Math.min(scrollY, Math.max(0, totalHeight - visibleHeight));
+  track.style.transform = `translateY(-${scrollY}px)`;
 }
 
 let scrollDir = 1; // 1 = down, -1 = up
@@ -465,10 +467,10 @@ function scrollStep(ts) {
   const dt = (ts - lastTs) / 1000;
   lastTs = ts;
 
-  if (!pausing) {
+  if (!pausing && totalHeight > visibleHeight) {
     const speed = scrollDir === 1 ? SCROLL_PPS : SCROLL_PPS_UP;
     scrollY += speed * dt * scrollDir;
-    const maxScroll = totalHeight - visibleHeight;
+    const maxScroll = Math.max(0, totalHeight - visibleHeight);
     if (scrollY >= maxScroll) {
       scrollY = maxScroll;
       pauseThenScroll(-1); // pause at bottom, then scroll up
