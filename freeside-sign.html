@@ -104,7 +104,7 @@
   /* ── EVENT CARD ──────────────────────────────────────────── */
   .event-card {
     display: grid;
-    grid-template-columns: 96px 1fr auto;
+    grid-template-columns: 200px minmax(0, 1fr) auto;
     align-items: center;
     gap: 0 24px;
     padding: 16px 36px;
@@ -116,8 +116,31 @@
   .event-card.free  { background: var(--free-bg); }
   .event-card.paid  { background: var(--paid-bg); }
 
+  /* event image fades into the date */
+  .event-visual {
+    position: relative;
+    align-self: stretch;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    min-height: 74px;
+  }
+
+  .event-image {
+    position: absolute;
+    inset: -16px auto -16px -36px;
+    width: 200px;
+    height: calc(100% + 32px);
+    object-fit: cover;
+    -webkit-mask-image: linear-gradient(to right, #000 25%, transparent 100%);
+    mask-image: linear-gradient(to right, #000 25%, transparent 100%);
+  }
+
   /* date block */
   .event-date-block {
+    position: relative;
+    z-index: 1;
+    width: 96px;
     text-align: center;
     flex-shrink: 0;
   }
@@ -241,45 +264,16 @@
     background: var(--border);
   }
 
-  /* ── FOOTER ──────────────────────────────────────────────── */
-  footer {
+  /* Only errors occupy footer space. */
+  #errorFooter {
     padding: 8px 36px;
     border-top: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
     flex-shrink: 0;
     background: var(--bg);
-  }
-
-  .footer-left {
-    font-size: 0.7rem;
-    color: var(--muted);
-    font-family: 'Space Mono', monospace;
-  }
-
-  .footer-right {
-    font-size: 0.7rem;
-    color: var(--muted);
-    font-family: 'Space Mono', monospace;
-  }
-
-  .refresh-bar {
-    width: 120px;
-    height: 2px;
-    background: var(--border);
-    border-radius: 1px;
-    overflow: hidden;
-    display: inline-block;
-    vertical-align: middle;
-    margin-left: 8px;
-  }
-
-  .refresh-bar-fill {
-    height: 100%;
-    background: var(--accent);
-    width: 0%;
-    transition: width 1s linear;
+    color: #b00020;
+    font-family: 'Ubuntu Mono', monospace;
+    font-size: 0.85rem;
+    overflow-wrap: anywhere;
   }
 
   /* ── LAYOUT ──────────────────────────────────────────────── */
@@ -309,13 +303,7 @@
   </div>
 </div>
 
-<footer>
-  <div class="footer-left" id="eventCount">-- events</div>
-  <div class="footer-right">
-    Refreshes hourly
-    <span class="refresh-bar"><span class="refresh-bar-fill" id="refreshFill"></span></span>
-  </div>
-</footer>
+<footer id="errorFooter" role="alert" hidden></footer>
 
 <script>
 // ── CONFIG ────────────────────────────────────────────────────
@@ -347,29 +335,33 @@ function updateClock() {
 setInterval(updateClock, 1000);
 updateClock();
 
-// ── REFRESH PROGRESS BAR ──────────────────────────────────────
-const fillEl = document.getElementById('refreshFill');
-let refreshStart = Date.now();
-function updateBar() {
-  const pct = Math.min(100, ((Date.now() - refreshStart) / REFRESH_MS) * 100);
-  fillEl.style.width = pct + '%';
+// ── ERROR DISPLAY ────────────────────────────────────────────
+function showError(error) {
+  const footer = document.getElementById('errorFooter');
+  footer.textContent = 'Error: ' + (error?.message || String(error));
+  footer.hidden = false;
+  getHeights();
 }
-setInterval(updateBar, 1000);
+
+function clearError() {
+  const footer = document.getElementById('errorFooter');
+  footer.textContent = '';
+  footer.hidden = true;
+}
+
+window.addEventListener('error', event => showError(event.error || event.message));
+window.addEventListener('unhandledrejection', event => showError(event.reason));
 
 // ── DATA FETCH ────────────────────────────────────────────────
 async function fetchEvents() {
-  try {
-    const r = await fetch(JSON_PATH + '?_=' + Date.now(), { cache: 'no-store' });
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    const data = await r.json();
-    // sort by index (unix timestamp) ascending, filter past events
-    const now = Date.now() / 1000;
-    events = data
-      .filter(e => e.index >= now - 3600) // keep events starting up to 1hr ago
-      .sort((a, b) => a.index - b.index);
-  } catch(err) {
-    console.error('Failed to load events:', err);
-  }
+  const r = await fetch(JSON_PATH + '?_=' + Date.now(), { cache: 'no-store' });
+  if (!r.ok) throw new Error('Failed to load events: HTTP ' + r.status);
+  const data = await r.json();
+  // sort by index (unix timestamp) ascending, filter past events
+  const now = Date.now() / 1000;
+  events = data
+    .filter(e => e.index >= now - 3600) // keep events starting up to 1hr ago
+    .sort((a, b) => a.index - b.index);
 }
 
 // ── RENDER ────────────────────────────────────────────────────
@@ -405,10 +397,12 @@ function buildCards() {
     const mon = parts.month.toUpperCase();
 
     card.innerHTML = `
-      <div class="event-date-block">
-        <div class="event-dow">${dow}</div>
-        <div class="event-day">${String(day).padStart(2,'0')}</div>
-        <div class="event-month">${mon}</div>
+      <div class="event-visual">
+        <div class="event-date-block">
+          <div class="event-dow">${dow}</div>
+          <div class="event-day">${String(day).padStart(2,'0')}</div>
+          <div class="event-month">${mon}</div>
+        </div>
       </div>
       <div class="event-info">
         <div class="event-title"></div>
@@ -416,10 +410,6 @@ function buildCards() {
           <span class="meta-item event-time">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
             <span class="event-time-text"></span>
-          </span>
-          <span class="meta-item">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-            <span class="event-source"></span>
           </span>
         </div>
       </div>
@@ -430,15 +420,22 @@ function buildCards() {
 
     card.querySelector('.event-title').textContent = ev.title;
     card.querySelector('.event-time-text').textContent = ev.time;
-    card.querySelector('.event-source').textContent = ev.source;
+    if (ev.image_url) {
+      const image = document.createElement('img');
+      image.className = 'event-image';
+      image.alt = '';
+      image.addEventListener('error', () => {
+        image.hidden = true;
+        showError(new Error('Failed to load event image for ' + ev.title));
+      });
+      image.src = ev.image_url;
+      card.querySelector('.event-visual').appendChild(image);
+    }
     if (ev.attendees > 0) {
       card.querySelector('.attendee-count').textContent = `${ev.attendees} going`;
     }
     track.appendChild(card);
   });
-
-  document.getElementById('eventCount').textContent =
-    `${events.length} upcoming event${events.length !== 1 ? 's' : ''}`;
 }
 
 // ── SCROLL LOOP ───────────────────────────────────────────────
@@ -490,26 +487,23 @@ function scrollStep(ts) {
 
 // ── INIT & REFRESH ────────────────────────────────────────────
 async function init() {
-  await fetchEvents();
-  buildCards();
-  getHeights();
-  resetScroll();
-  cancelAnimationFrame(scrollRAF);
-  lastTs = null;
-  scrollRAF = requestAnimationFrame(scrollStep);
+  try {
+    await fetchEvents();
+    buildCards();
+    clearError();
+    getHeights();
+    resetScroll();
+    cancelAnimationFrame(scrollRAF);
+    lastTs = null;
+    scrollRAF = requestAnimationFrame(scrollStep);
+  } catch (err) {
+    console.error('Failed to update sign:', err);
+    showError(err);
+  }
 }
 
 // Hourly refresh
-setInterval(async () => {
-  refreshStart = Date.now();
-  fillEl.style.transition = 'none';
-  fillEl.style.width = '0%';
-  setTimeout(() => { fillEl.style.transition = 'width 1s linear'; }, 50);
-  await fetchEvents();
-  buildCards();      // ← this must be here
-  getHeights();
-  resetScroll();
-}, REFRESH_MS);
+setInterval(init, REFRESH_MS);
 
 window.addEventListener('resize', getHeights);
 
