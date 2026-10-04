@@ -5,6 +5,8 @@ import discord
 from models import DiscordEvent
 from visher import Eventer
 
+COLLECTION_TIMEOUT_SECONDS = 120
+
 
 async def get_scheduled_events(tk: str) -> list[Eventer]:
     """Get scheduled events from the bot's first Discord server."""
@@ -40,7 +42,8 @@ async def get_scheduled_events(tk: str) -> list[Eventer]:
             await client.close()
 
     try:
-        await client.start(tk)
+        async with asyncio.timeout(COLLECTION_TIMEOUT_SECONDS):
+            await client.start(tk)
     finally:
         if not client.is_closed():
             await client.close()

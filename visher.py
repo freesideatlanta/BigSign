@@ -37,7 +37,7 @@ class Eventer(StrictModel):
     imageurl: str | None = None
 
     @classmethod
-    def from_meetup(cls, event: MeetupEvent, image_url: str) -> Self:
+    def from_meetup(cls, event: MeetupEvent, image_url: str | None) -> Self:
         date, start, index = format_start(event.dateTime)
         return cls(
             ID=event.id,

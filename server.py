@@ -1,5 +1,7 @@
 """Serve only the sign at / and its generated event data."""
 
+import os
+from email.utils import formatdate
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -26,7 +28,9 @@ class SignRequestHandler(BaseHTTPRequestHandler):
             return
         filename, content_type = route
         try:
-            content = (CONTENT_ROOT / filename).read_bytes()
+            with (CONTENT_ROOT / filename).open("rb") as stream:
+                content = stream.read()
+                modified = os.fstat(stream.fileno()).st_mtime
         except FileNotFoundError:
             self.send_error(HTTPStatus.NOT_FOUND)
             return
@@ -34,6 +38,8 @@ class SignRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(content)))
         self.send_header("Cache-Control", "no-store")
+        # Read metadata from the same inode as the content during atomic replacement.
+        self.send_header("Last-Modified", formatdate(modified, usegmt=True))
         self.end_headers()
         if send_body:
             self.wfile.write(content)

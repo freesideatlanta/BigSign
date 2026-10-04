@@ -20,9 +20,18 @@ def MeetupScrape() -> list[Eventer]:
     for key, value in props.items():
         if not key.startswith("Event:"):
             continue
-        event = MeetupEvent.model_validate(value)
-        if event.status == "CANCELLED":
+        if isinstance(value, dict) and value.get("status") == "CANCELLED":
             continue
-        photo = MeetupPhoto.model_validate(props[event.featuredEventPhoto.ref])
-        event_list.append(Eventer.from_meetup(event, photo.highResUrl))
+        event = MeetupEvent.model_validate(value)
+        photo_data = (
+            props.get(event.featuredEventPhoto.ref)
+            if event.featuredEventPhoto
+            else None
+        )
+        image_url = (
+            MeetupPhoto.model_validate(photo_data).highResUrl
+            if photo_data is not None
+            else None
+        )
+        event_list.append(Eventer.from_meetup(event, image_url))
     return event_list

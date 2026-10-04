@@ -1,3 +1,4 @@
+import os
 import tempfile
 import threading
 import unittest
@@ -52,10 +53,27 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), [])
         self.assertEqual(response.headers["Content-Type"], "application/json")
+        self.assertIn("Last-Modified", response.headers)
         response = requests.head(self.base_url + "/", timeout=2)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.content, b"")
         self.assertEqual(int(response.headers["Content-Length"]), len(self.html))
+
+    def test_event_timestamp_tracks_last_successful_publication(self) -> None:
+        output = self.root / "eventsdata.json"
+        os.utime(output, (1_700_000_000, 1_700_000_000))
+        response = requests.get(self.base_url + "/eventsdata.json", timeout=2)
+        self.assertEqual(
+            response.headers["Last-Modified"], "Tue, 14 Nov 2023 22:13:20 GMT"
+        )
+        replacement = self.root / "replacement.json"
+        replacement.write_bytes(b"[]")
+        os.utime(replacement, (1_700_003_600, 1_700_003_600))
+        replacement.replace(output)
+        response = requests.get(self.base_url + "/eventsdata.json", timeout=2)
+        self.assertEqual(
+            response.headers["Last-Modified"], "Tue, 14 Nov 2023 23:13:20 GMT"
+        )
 
     def test_other_paths_are_not_served(self) -> None:
         for path in (

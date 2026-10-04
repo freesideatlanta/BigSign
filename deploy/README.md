@@ -14,7 +14,7 @@ an interactive SSH terminal so `sudo` can prompt for a password.
 The target needs:
 
 - A Linux installation using systemd, an active systemd user manager, and LightDM.
-- Python 3, Bash, `curl`, `rsync`, `sudo`, and `crontab`.
+- Python 3, Bash, `curl`, `rsync`, `sudo`, `flock`, and `crontab`.
 - `/usr/bin/chromium`, `/usr/bin/labwc`, and `wlr-randr` for the Wayland kiosk.
 - Permission for `eventerini` to use `sudo` to install services and update LightDM.
 - Internet access for uv/Python/dependency installation and Meetup/Discord collection.
@@ -73,3 +73,7 @@ tail /home/eventerini/Documents/cron.log
 To collect immediately, run `bash /home/eventerini/Documents/start-fetch.sh`.
 Reload the sign to display the result immediately. Failed collection leaves the
 previous JSON file intact and exits with an error in the fetch log.
+The sign warns when the last successful collection is over two hours old, using
+the JSON file's modification time served in the `Last-Modified` header. Discord
+collection times out after two minutes. A file lock prevents overlapping fetches;
+an overlapping invocation exits without collecting.

@@ -22,6 +22,7 @@ class Element {
   }
   get innerHTML() { return this.markup; }
   appendChild(child) { this.children.push(child); }
+  replaceChildren(fragment) { this.children = [...fragment.children]; }
   addEventListener(type, callback) { this.listeners.set(type, callback); }
   querySelector(selector) {
     assert.ok(this.markup.includes(`class="${selector.slice(1)}"`));
@@ -41,6 +42,7 @@ function loadSign(fetch = async () => { throw new Error("Network unavailable"); 
         return elements.get(id);
       },
       createElement: () => new Element(),
+      createDocumentFragment: () => new Element(),
     },
     setInterval: () => 1,
     setTimeout: () => 1,
@@ -48,7 +50,11 @@ function loadSign(fetch = async () => { throw new Error("Network unavailable"); 
     requestAnimationFrame: () => 1,
     cancelAnimationFrame: () => {},
     window: { addEventListener: () => {} },
-    fetch,
+    fetch: async (...args) => {
+      const response = await fetch(...args);
+      // Successful fixtures default to a recent collection unless overridden.
+      return { headers: { get: () => new Date().toUTCString() }, ...response };
+    },
     console: { error: () => {} },
   });
   // Exercise the real page functions while controlling initialization and timers.
@@ -152,4 +158,54 @@ test('network and rendering failures show their actual error messages', async ()
   ] }));
   await rendering.run('init();');
   assert.match(rendering.elements.get('errorFooter').textContent, /Invalid time value/);
+});
+
+test('invalid refresh payloads preserve the previous events and cards', async () => {
+  const valid = {index: Date.now() / 1000 + 3600, title: 'Valid', time: '06:30PM',
+    free: true, attendees: 0, image_url: null};
+  for (const payload of [null, {}, [null], [valid, {...valid, index: 1e20}],
+      [valid, {...valid, free: 'true'}]]) {
+    const { elements, run } = loadSign(async () => ({ok: true, json: async () => payload}));
+    run(`events = [${JSON.stringify(valid)}]; buildCards();`);
+    const previousCards = elements.get('scrollTrack').children;
+    const previousEvents = run('events');
+    await run('init();');
+    assert.equal(elements.get('scrollTrack').children, previousCards);
+    assert.equal(run('events'), previousEvents);
+    assert.match(elements.get('errorFooter').textContent, /Error:/);
+  }
+});
+
+test('a rendering exception after building a card preserves the display', () => {
+  const { elements, run } = loadSign();
+  run(`events = [{index: 2e9, title: 'Existing', time: '06:30PM', free: true, attendees: 0}]; buildCards();`);
+  const previousCards = elements.get('scrollTrack').children;
+  const previousEvents = run('events');
+  assert.throws(() => run(`buildCards([events[0], {index: 1e20}]);`), /Invalid time value/);
+  assert.equal(elements.get('scrollTrack').children, previousCards);
+  assert.equal(run('events'), previousEvents);
+});
+
+test('stale collection warns even on HTTP success and fresh collection recovers', async () => {
+  let timestamp = Date.now() - 3 * 3600 * 1000;
+  const { elements, run } = loadSign(async () => ({ok: true, json: async () => [],
+    headers: {get: () => new Date(timestamp).toUTCString()}}));
+  await run('init();');
+  assert.match(elements.get('errorFooter').textContent, /over two hours old/);
+  assert.equal(elements.get('wifiDetails').hidden, true);
+  timestamp = Date.now();
+  await run('init();');
+  assert.equal(elements.get('errorFooter').textContent, '');
+  run('collectedAt = Date.now() - MAX_DATA_AGE_MS - 1; checkFreshness();');
+  assert.match(elements.get('errorFooter').textContent, /over two hours old/);
+});
+
+test('missing collection timestamp reports an error and preserves cards', async () => {
+  const { elements, run } = loadSign(async () => ({ok: true, json: async () => [],
+    headers: {get: () => null}}));
+  run(`events = [{index: 2e9, title: 'Existing', time: '06:30PM', free: true, attendees: 0}]; buildCards();`);
+  const previousCards = elements.get('scrollTrack').children;
+  await run('init();');
+  assert.equal(elements.get('scrollTrack').children, previousCards);
+  assert.match(elements.get('errorFooter').textContent, /timestamp is missing or invalid/);
 });

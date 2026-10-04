@@ -21,6 +21,7 @@ dist/
 
 # Runtime event data, logs, and local archives
 /eventsdata.json
+/.events-fetch.lock
 *.log
 /archive.tar.gz
 

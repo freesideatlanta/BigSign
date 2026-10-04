@@ -372,12 +372,14 @@ if (new URLSearchParams(location.search).has('portrait')) {
 const DISPLAY_TIME_ZONE = 'America/New_York';
 const JSON_PATH = 'eventsdata.json';   // same folder as this HTML
 const REFRESH_MS  = 60 * 60 * 1000;   // 1 hour
+const MAX_DATA_AGE_MS = 2 * REFRESH_MS;
 const SCROLL_PPS  = 30;               // pixels per second (scroll down)
 const SCROLL_PPS_UP = 1000;             // pixels per second (scroll up)
 const PAUSE_TOP_MS = 4000;            // pause at top before scrolling
 
 // ── STATE ─────────────────────────────────────────────────────
 let events = [];
+let collectedAt = null;
 let scrollY = 0;
 let scrollRAF = null;
 let lastTs = null;
@@ -421,24 +423,45 @@ async function fetchEvents() {
   const r = await fetch(JSON_PATH + '?_=' + Date.now(), { cache: 'no-store' });
   if (!r.ok) throw new Error('Failed to load events: HTTP ' + r.status);
   const data = await r.json();
+  const timestamp = Date.parse(r.headers.get('Last-Modified'));
+  if (!Number.isFinite(timestamp)) throw new Error('Event collection timestamp is missing or invalid');
+  if (!Array.isArray(data)) throw new Error('Event data must be an array');
+  data.forEach(ev => {
+    if (!ev || typeof ev.index !== 'number' || !Number.isFinite(ev.index) ||
+        !Number.isFinite(new Date(ev.index * 1000).getTime())) {
+      throw new RangeError('Invalid time value in event data');
+    }
+    if (typeof ev.title !== 'string' || typeof ev.time !== 'string' ||
+        typeof ev.free !== 'boolean' || !Number.isInteger(ev.attendees) ||
+        !(ev.image_url == null || typeof ev.image_url === 'string')) {
+      throw new Error('Invalid event fields');
+    }
+  });
   // sort by index (unix timestamp) ascending, filter past events
   const now = Date.now() / 1000;
-  events = data
+  const nextEvents = data
     .filter(e => e.index >= now - 3600) // keep events starting up to 1hr ago
     .sort((a, b) => a.index - b.index);
+  return { events: nextEvents, collectedAt: timestamp };
+}
+
+function checkFreshness() {
+  if (collectedAt !== null && Date.now() - collectedAt > MAX_DATA_AGE_MS) {
+    showError(new Error('Event data is over two hours old; collection may have failed'));
+  }
 }
 
 // ── RENDER ────────────────────────────────────────────────────
-function buildCards() {
+function buildCards(nextEvents = events) {
   const track = document.getElementById('scrollTrack');
-  track.innerHTML = '';
+  const fragment = document.createDocumentFragment();
 
   let lastDate = null;
   const dateFormatter = new Intl.DateTimeFormat('en-US', {
     timeZone: DISPLAY_TIME_ZONE, weekday: 'long', month: 'short', day: 'numeric', year: 'numeric'
   });
 
-  events.forEach(ev => {
+  nextEvents.forEach(ev => {
     const d = new Date(ev.index * 1000);
     const parts = Object.fromEntries(dateFormatter.formatToParts(d).map(part => [part.type, part.value]));
     const dateKey = `${parts.year}-${parts.month}-${parts.day}`;
@@ -450,7 +473,7 @@ function buildCards() {
       sep.innerHTML = `
         <span class="date-sep-label">${parts.weekday}, ${parts.month} ${parts.day}</span>
         <span class="date-sep-line"></span>`;
-      track.appendChild(sep);
+      fragment.appendChild(sep);
     }
 
     const card = document.createElement('div');
@@ -498,8 +521,10 @@ function buildCards() {
     if (ev.attendees > 0) {
       card.querySelector('.attendee-count').textContent = `${ev.attendees} going`;
     }
-    track.appendChild(card);
+    fragment.appendChild(card);
   });
+  track.replaceChildren(fragment);
+  events = nextEvents;
 }
 
 // ── SCROLL LOOP ───────────────────────────────────────────────
@@ -552,9 +577,11 @@ function scrollStep(ts) {
 // ── INIT & REFRESH ────────────────────────────────────────────
 async function init() {
   try {
-    await fetchEvents();
-    buildCards();
+    const snapshot = await fetchEvents();
+    buildCards(snapshot.events);
+    collectedAt = snapshot.collectedAt;
     clearError();
+    checkFreshness();
     getHeights();
     resetScroll();
     cancelAnimationFrame(scrollRAF);
@@ -568,6 +595,7 @@ async function init() {
 
 // Hourly refresh
 setInterval(init, REFRESH_MS);
+setInterval(checkFreshness, 60 * 1000);
 
 window.addEventListener('resize', getHeights);
 

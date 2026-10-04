@@ -33,7 +33,7 @@ class MeetupEvent(SourceModel):
     going: MeetupGoing
     eventHosts: list[JsonValue]
     feeSettings: dict[str, JsonValue] | None
-    featuredEventPhoto: MeetupPhotoReference
+    featuredEventPhoto: MeetupPhotoReference | None = None
 
 
 class MeetupPhoto(SourceModel):

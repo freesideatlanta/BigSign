@@ -1,6 +1,9 @@
+import asyncio
 import datetime
+import fcntl
 import json
 import os
+import subprocess
 import tempfile
 import time
 import unittest
@@ -215,6 +218,96 @@ class ModelTests(unittest.TestCase):
 
 
 class CollectorTests(unittest.TestCase):
+    def test_scraper_tolerates_missing_photos_and_incomplete_cancelled_events(
+        self,
+    ) -> None:
+        for photo in (None, "missing", "unresolved"):
+            with self.subTest(photo=photo):
+                payload = meetup_payload()
+                if photo is None:
+                    payload["featuredEventPhoto"] = None
+                elif photo == "missing":
+                    del payload["featuredEventPhoto"]
+                page = {
+                    "props": {
+                        "pageProps": {
+                            "__APOLLO_STATE__": {
+                                "Event:123": payload,
+                                "Event:124": {"status": "CANCELLED"},
+                            }
+                        }
+                    }
+                }
+                response = MagicMock(
+                    content=(
+                        '<script id="__NEXT_DATA__">' + json.dumps(page) + "</script>"
+                    ).encode()
+                )
+                with patch("scraper.requests.get", return_value=response):
+                    result = scraper.MeetupScrape()
+                self.assertEqual(len(result), 1)
+                self.assertEqual(result[0].title, "Workshop")
+                self.assertIsNone(result[0].imageurl)
+
+    def test_discord_timeout_closes_client_and_preserves_published_events(self) -> None:
+        for phase in ("connect", "fetch"):
+            with self.subTest(phase=phase), tempfile.TemporaryDirectory() as directory:
+                output = Path(directory) / "events.json"
+                output.write_bytes(b"[]")
+                client = MagicMock()
+                client.event.side_effect = lambda callback: callback
+                client.is_closed.return_value = False
+                client.close = AsyncMock()
+
+                async def hang() -> None:
+                    await asyncio.Event().wait()
+
+                guild = MagicMock()
+                guild.fetch_scheduled_events = AsyncMock(side_effect=hang)
+                client.guilds = [guild]
+
+                async def start(token: str) -> None:
+                    if phase == "connect":
+                        await hang()
+                    else:
+                        await client.event.call_args.args[0]()
+
+                client.start = AsyncMock(side_effect=start)
+                with (
+                    patch.dict(os.environ, {"TOKEN": "test-token"}),
+                    patch("events.sc.MeetupScrape", return_value=[meetup_event()]),
+                    patch("discorder.discord.Client", return_value=client),
+                    patch("discorder.COLLECTION_TIMEOUT_SECONDS", 0.01),
+                    self.assertRaises(TimeoutError),
+                ):
+                    jsonolater.events_json(output)
+                self.assertEqual(output.read_bytes(), b"[]")
+                client.close.assert_awaited()
+
+    def test_fetch_script_rejects_overlap_and_runs_after_lock_is_released(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            script = root / "start-fetch.sh"
+            script.write_bytes(
+                (Path(__file__).resolve().parents[1] / script.name).read_bytes()
+            )
+            uv = root / "uv"
+            uv.write_text('#!/bin/sh\nprintf "collector invoked\\n"\n')
+            uv.chmod(0o755)
+            env = {**os.environ, "PATH": f"{root}:{os.environ['PATH']}"}
+            with (root / ".events-fetch.lock").open("w") as lock:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                blocked = subprocess.run(
+                    ["bash", str(script)], env=env, capture_output=True, timeout=5
+                )
+                self.assertEqual(blocked.returncode, 1)
+                self.assertEqual(blocked.stdout, b"")
+            completed = subprocess.run(
+                ["bash", str(script)], env=env, capture_output=True, timeout=5
+            )
+            self.assertEqual(completed.returncode, 0)
+            self.assertEqual(completed.stdout, b"collector invoked\n")
+
     def test_scraper_validates_page_and_skips_cancelled(self) -> None:
         cancelled = {**meetup_payload(), "id": "124", "status": "CANCELLED"}
         apollo = {
