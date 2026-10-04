@@ -122,7 +122,7 @@ test('event images use the supplied URL and missing images leave the date visibl
   assert.match(elements.get('errorFooter').textContent, /Failed to load event image for With image/);
 });
 
-test('refresh errors show the message and retain events, then recovery hides the footer', async () => {
+test('refresh errors replace Wi-Fi details and retain events, then recovery restores Wi-Fi', async () => {
   let fails = true;
   const { elements, run } = loadSign(async () => {
     if (fails) return { ok: false, status: 503 };
@@ -133,11 +133,13 @@ test('refresh errors show the message and retain events, then recovery hides the
   const previousCards = elements.get('scrollTrack').children;
   await run('init();');
   assert.equal(elements.get('errorFooter').hidden, false);
+  assert.equal(elements.get('wifiDetails').hidden, true);
   assert.match(elements.get('errorFooter').textContent, /HTTP 503/);
   assert.equal(elements.get('scrollTrack').children, previousCards);
   fails = false;
   await run('init();');
   assert.equal(elements.get('errorFooter').hidden, true);
+  assert.equal(elements.get('wifiDetails').hidden, false);
   assert.equal(elements.get('errorFooter').textContent, '');
 });
 
