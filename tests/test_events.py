@@ -185,6 +185,37 @@ class ModelTests(unittest.TestCase):
             },
         )
 
+    def test_json_replacement_keeps_existing_readers_consistent(self) -> None:
+        events = sign_events([meetup_event()])
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "events.json"
+            output.write_bytes(b"[]")
+            output.chmod(0o640)
+            with output.open("rb") as old_reader:
+                with patch("jsonolater.collect_events", return_value=events):
+                    jsonolater.events_json(output)
+                self.assertEqual(old_reader.read(), b"[]")
+            self.assertEqual(
+                jsonolater.event_list_adapter.validate_json(output.read_bytes()), events
+            )
+            self.assertEqual(output.stat().st_mode & 0o777, 0o640)
+            self.assertEqual(list(Path(directory).iterdir()), [output])
+
+    def test_failed_json_replacement_preserves_previous_file(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "events.json"
+            output.write_bytes(b"[]")
+            with patch(
+                "jsonolater.collect_events", return_value=sign_events([meetup_event()])
+            ):
+                with patch.object(
+                    Path, "replace", side_effect=OSError("replace failed")
+                ):
+                    with self.assertRaises(OSError):
+                        jsonolater.events_json(output)
+            self.assertEqual(output.read_bytes(), b"[]")
+            self.assertEqual(list(Path(directory).iterdir()), [output])
+
 
 class CollectorTests(unittest.TestCase):
     def test_scraper_validates_page_and_skips_cancelled(self) -> None:
