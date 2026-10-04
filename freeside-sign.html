@@ -301,6 +301,12 @@ if (new URLSearchParams(location.search).has('portrait')) {
     margin-bottom: 10px;
   }
 
+  .wifi-fields {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    column-gap: 12px;
+  }
+
   .wifi-value {
     font-family: 'Ubuntu Mono', monospace;
     font-weight: 700;
@@ -352,8 +358,10 @@ if (new URLSearchParams(location.search).has('portrait')) {
     </svg>
     <div class="wifi-copy">
       <div class="wifi-heading">Connect to Wifi</div>
-      <div>Network: <span class="wifi-value">Freeside-Members</span></div>
-      <div>Password: <span class="wifi-value">terminus</span></div>
+      <div class="wifi-fields">
+        <span>Network:</span><span class="wifi-value">Freeside-Members</span>
+        <span>Password:</span><span class="wifi-value">terminus</span>
+      </div>
     </div>
   </div>
   <div id="errorFooter" role="alert" hidden></div>
