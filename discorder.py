@@ -20,7 +20,7 @@ async def get_scheduled_events(tk: str) -> list[Eventer]:
         print("Logged in")
         try:
             if not client.guilds:
-                return
+                raise RuntimeError("Discord bot is not connected to any server")
             guild = client.guilds[0]
             events = await guild.fetch_scheduled_events()
             for event in events:
@@ -33,8 +33,6 @@ async def get_scheduled_events(tk: str) -> list[Eventer]:
                     imageurl=str(event.cover_image) if event.cover_image else None,
                 )
                 all_events.append(Eventer.from_discord(payload))
-        except discord.Forbidden:
-            print("No permission to view scheduled events")
         except Exception as error:
             # Discord dispatches callbacks in a task; propagate failure to the caller.
             collection_error = error
@@ -43,9 +41,6 @@ async def get_scheduled_events(tk: str) -> list[Eventer]:
 
     try:
         await client.start(tk)
-    except discord.LoginFailure:
-        print("Failed to login. Please check your token.")
-        return []
     finally:
         if not client.is_closed():
             await client.close()

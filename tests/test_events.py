@@ -281,6 +281,50 @@ class CollectorTests(unittest.TestCase):
                 discorder.discordEvents("test-token")
         client.close.assert_awaited_once()
 
+    def test_discord_failures_preserve_published_events(self) -> None:
+        for failure in ("login", "permission", "no_server"):
+            with (
+                self.subTest(failure=failure),
+                tempfile.TemporaryDirectory() as directory,
+            ):
+                output = Path(directory) / "events.json"
+                output.write_bytes(b"[]")
+                client = MagicMock()
+                client.event.side_effect = lambda callback: callback
+                client.is_closed.return_value = False
+
+                async def close() -> None:
+                    client.is_closed.return_value = True
+
+                client.close = AsyncMock(side_effect=close)
+                guild = MagicMock()
+                client.guilds = [] if failure == "no_server" else [guild]
+                guild.fetch_scheduled_events = AsyncMock(
+                    side_effect=discorder.discord.Forbidden(
+                        MagicMock(status=403, reason="Forbidden"), "No permission"
+                    )
+                )
+
+                async def start(token: str) -> None:
+                    if failure == "login":
+                        raise discorder.discord.LoginFailure("Invalid token")
+                    await client.event.call_args.args[0]()
+
+                client.start = AsyncMock(side_effect=start)
+                with patch.dict(os.environ, {"TOKEN": "test-token"}):
+                    with patch("events.sc.MeetupScrape", return_value=[meetup_event()]):
+                        with patch("discorder.discord.Client", return_value=client):
+                            with self.assertRaises(
+                                (
+                                    discorder.discord.LoginFailure,
+                                    discorder.discord.Forbidden,
+                                    RuntimeError,
+                                )
+                            ):
+                                jsonolater.events_json(output)
+                self.assertEqual(output.read_bytes(), b"[]")
+                client.close.assert_awaited_once()
+
     def test_flask_details_match_both_id_types(self) -> None:
         for event in (meetup_event(), Eventer.from_discord(discord_payload())):
             events = sign_events([event])
