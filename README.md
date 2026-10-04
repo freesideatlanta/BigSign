@@ -2,6 +2,8 @@
 
 Displays Freeside Atlanta events from Meetup and Discord.
 
+![Freeside Big Sign showing upcoming events](docs/screenshot.png)
+
 ## Run locally
 
 With [uv](https://docs.astral.sh/uv/getting-started/installation/) installed:
