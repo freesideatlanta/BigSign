@@ -10,6 +10,7 @@ from pathlib import Path
 def install() -> None:
     """Runs on BigSign over SSH."""
     import os
+    import shutil
     import subprocess
     from pathlib import Path
 
@@ -26,6 +27,9 @@ def install() -> None:
     os.chdir(root)
     os.environ["PATH"] = f"/home/eventerini/.local/bin:{os.environ['PATH']}"
     run(["sudo", "-v"])
+    if shutil.which("xdotool") is None:
+        run(["sudo", "apt-get", "update"])
+        run(["sudo", "apt-get", "install", "-y", "xdotool"])
     uv = Path("/home/eventerini/.local/bin/uv")
     if not uv.exists():
         installer = subprocess.run(
@@ -117,7 +121,21 @@ def install() -> None:
         ],
         stdout=subprocess.DEVNULL,
     )
-    print("Deployed. Reload Chromium for HTML changes; log in again for kiosk changes.")
+    run(["bash", "deploy/reload-kiosk.sh"])
+    # Retire the old environment only after the new service passes its health check.
+    for name in ("myenv", "__pycache__"):
+        path = root / name
+        if path.is_dir() and not path.is_symlink():
+            shutil.rmtree(path)
+    for name in (
+        "requirements.txt",
+        "deploy.py",
+        "events-fetch.cron",
+        "events-server.service",
+        "kiosk.desktop",
+    ):
+        (root / name).unlink(missing_ok=True)
+    print("Deployed. Kiosk launcher changes take effect at the next desktop login.")
 
 
 def deploy() -> None:
@@ -152,7 +170,7 @@ def deploy() -> None:
         ".env.example",
         "start-fetch.sh",
         "start-server.sh",
-        "deploy/",
+        "deploy",
     ]
     subprocess.run(
         ["rsync", "-av", "--", *files, f"{host}:{target}/"], cwd=root, check=True

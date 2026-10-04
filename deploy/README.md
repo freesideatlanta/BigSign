@@ -19,8 +19,12 @@ deploy command again. A missing or empty remote `.env` stops deployment before
 any files are copied.
 
 Rerun the same command for updates. It preserves `.env` and unrelated cron jobs.
-Events refresh hourly. Reload Chromium to apply HTML changes immediately;
-kiosk launcher changes take effect at the next desktop login.
+Events refresh hourly. After the server health check passes, deployment
+hard-reloads the visible Chromium sign window on the X11 desktop (`:0`). It
+installs `xdotool` through apt if needed. If no desktop or sign window is
+running, it reports that reload was skipped; the kiosk opens at the next login.
+Display access and reload errors fail deployment. Kiosk launcher changes take
+effect at the next desktop login.
 
 For failures, check `journalctl -u events-server.service` and
 `/home/eventerini/Documents/cron.log` on the host.
